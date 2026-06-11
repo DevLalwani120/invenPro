@@ -25,10 +25,8 @@ jobs:
 
       - name: Run daily alert
         env:
-          FIREBASE_PROJECT_ID:   ${{ secrets.FIREBASE_PROJECT_ID }}
-          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
-          FIREBASE_PRIVATE_KEY:  ${{ secrets.FIREBASE_PRIVATE_KEY }}
-          GMAIL_USER:            ${{ secrets.GMAIL_USER }}
-          GMAIL_APP_PASSWORD:    ${{ secrets.GMAIL_APP_PASSWORD }}
-          ALERT_EMAILS:          ${{ secrets.ALERT_EMAILS }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GMAIL_USER:               ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD:       ${{ secrets.GMAIL_APP_PASSWORD }}
+          ALERT_EMAILS:             ${{ secrets.ALERT_EMAILS }}
         run: node alert-script/index.js
