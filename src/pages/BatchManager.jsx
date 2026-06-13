@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Plus, Pencil, Trash2, CalendarClock } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { Toast, useToast, ConfirmModal, Modal, Field, inputCls, PrimaryBtn, SaveBtn, Empty } from "../components/ui";
+import { addLedger as addLedgerFn } from "../firebase/ledger";
 
 const EMPTY = { itemId:"", batchNo:"", expiryDate:"", quantity:"", purchasePrice:"", mrp:"", supplierId:"" };
 
@@ -15,36 +16,56 @@ function ExpiryBadge({ date }) {
   return <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-600">Good</span>;
 }
 
-export default function BatchManager({ items, batches, ledger, addBatch, updateBatch, deleteBatch, addLedger }) {
-  const [form,          setForm]          = useState(EMPTY);
-  const [editId,        setEditId]        = useState(null);
-  const [modal,         setModal]         = useState(false);
-  const [delId,         setDelId]         = useState(null);
-  const [filter,        setFilter]        = useState("all");
-  const [toast,         showToast]        = useToast();
-
-  // "Other" supplier inline entry
+export default function BatchManager({ items, batches, ledger, addBatch, updateBatch, deleteBatch }) {
+  const [form,           setForm]           = useState(EMPTY);
+  const [editId,         setEditId]         = useState(null);
+  const [modal,          setModal]          = useState(false);
+  const [delId,          setDelId]          = useState(null);
+  const [filter,         setFilter]         = useState("all");
+  const [toast,          showToast]         = useToast();
   const [showOtherInput, setShowOtherInput] = useState(false);
   const [otherName,      setOtherName]      = useState("");
   const [savingOther,    setSavingOther]    = useState(false);
 
-  const itemMap     = Object.fromEntries(items.map(i  => [i.id,  i]));
-  const ledgerMap   = Object.fromEntries(ledger.map(l => [l.id,  l]));
+  // Local ledger copy — we can add to this without re-rendering whole app
+  const [localLedger, setLocalLedger] = useState(ledger);
 
-  const openAdd  = () => { setForm(EMPTY); setEditId(null); setShowOtherInput(false); setOtherName(""); setModal(true); };
-  const openEdit = (b) => {
-    setForm({ itemId:b.itemId, batchNo:b.batchNo||"",
-      expiryDate: b.expiryDate ? format(b.expiryDate,"yyyy-MM-dd") : "",
-      quantity:b.quantity??"", purchasePrice:b.purchasePrice??"",
-      mrp:b.mrp??"", supplierId:b.supplierId||"" });
-    setShowOtherInput(false); setOtherName(""); setEditId(b.id); setModal(true);
+  // Keep local ledger in sync when parent ledger prop changes
+  // but only when modal is closed to avoid disrupting the form
+  const [prevLedger, setPrevLedger] = useState(ledger);
+  if (ledger !== prevLedger && !modal) {
+    setPrevLedger(ledger);
+    setLocalLedger(ledger);
+  }
+
+  const itemMap   = Object.fromEntries(items.map(i => [i.id, i]));
+  const ledgerMap = Object.fromEntries(localLedger.map(l => [l.id, l]));
+
+  const openAdd  = () => {
+    setForm(EMPTY);
+    setEditId(null);
+    setShowOtherInput(false);
+    setOtherName("");
+    setModal(true);
   };
 
-  // When user picks "other" from dropdown
+  const openEdit = (b) => {
+    setForm({
+      itemId: b.itemId, batchNo: b.batchNo || "",
+      expiryDate: b.expiryDate ? format(b.expiryDate, "yyyy-MM-dd") : "",
+      quantity: b.quantity ?? "", purchasePrice: b.purchasePrice ?? "",
+      mrp: b.mrp ?? "", supplierId: b.supplierId || ""
+    });
+    setShowOtherInput(false);
+    setOtherName("");
+    setEditId(b.id);
+    setModal(true);
+  };
+
   const handleSupplierChange = (val) => {
     if (val === "__other__") {
       setShowOtherInput(true);
-      setForm(f => ({ ...f, supplierId: "__other__" }));
+      setForm(f => ({ ...f, supplierId: "" }));
     } else {
       setShowOtherInput(false);
       setOtherName("");
@@ -52,50 +73,51 @@ export default function BatchManager({ items, batches, ledger, addBatch, updateB
     }
   };
 
-  // Save new supplier to ledger and auto-select it
   const handleSaveOther = async () => {
     if (!otherName.trim()) return;
     setSavingOther(true);
+    const nameToSave = otherName.trim();
     try {
-      const ref = await addLedger({ name: otherName.trim(), type: "Supplier", phone: "", address: "" });
-      // addLedger triggers refetch; we need the new id — use optimistic approach
-      // The new entry will appear in ledger on next render; select by name match for now
-      showToast(`Supplier "${otherName.trim()}" saved to Ledger!`);
+      // Save to Firestore — get back the new doc reference with real ID
+      const docRef = await addLedgerFn({
+        name: nameToSave, type: "Supplier", phone: "", address: ""
+      });
+
+      // Add to LOCAL ledger state only — modal stays open, no app re-render
+      const newEntry = { id: docRef.id, name: nameToSave, type: "Supplier", phone: "", address: "" };
+      setLocalLedger(prev => [newEntry, ...prev]);
+
+      // Auto-select the new supplier in the form
+      setForm(f => ({ ...f, supplierId: docRef.id }));
+
+      // Hide the input
       setShowOtherInput(false);
       setOtherName("");
-      // set a sentinel so on next render we can auto-select
-      setForm(f => ({ ...f, supplierId: "__pending__", _pendingName: otherName.trim() }));
+
+      showToast(`"${nameToSave}" added!`);
     } catch {
-      showToast("Error saving supplier","error");
+      showToast("Error saving supplier", "error");
     } finally {
       setSavingOther(false);
     }
   };
 
-  // Auto-select newly added supplier once ledger refreshes
-  // If supplierId is __pending__ and we find the name, update it
-  const resolvedForm = { ...form };
-  if (form.supplierId === "__pending__" && form._pendingName) {
-    const found = ledger.find(l => l.name === form._pendingName);
-    if (found) resolvedForm.supplierId = found.id;
-  }
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const submitForm = { ...resolvedForm };
-    delete submitForm._pendingName;
-    if (submitForm.supplierId === "__pending__" || submitForm.supplierId === "__other__") {
-      submitForm.supplierId = "";
-    }
-    if (!submitForm.itemId || !submitForm.batchNo || !submitForm.expiryDate || !submitForm.quantity) return;
+    if (!form.itemId || !form.batchNo || !form.expiryDate || !form.quantity) return;
     try {
-      if (editId) { await updateBatch(editId, submitForm); showToast("Batch updated!"); }
-      else        { await addBatch(submitForm);             showToast("Batch added!");   }
+      if (editId) { await updateBatch(editId, form); showToast("Batch updated!"); }
+      else        { await addBatch(form);             showToast("Batch added!");   }
       setModal(false);
-    } catch { showToast("Error saving batch","error"); }
+    } catch { showToast("Error saving batch", "error"); }
   };
 
-  const handleDelete = async () => { await deleteBatch(delId); setDelId(null); showToast("Batch deleted"); };
+  const handleDelete = async () => {
+    await deleteBatch(delId);
+    setDelId(null);
+    showToast("Batch deleted");
+  };
+
   const list = batches.filter(b => filter === "all" || b.itemId === filter);
 
   return (
@@ -170,54 +192,52 @@ export default function BatchManager({ items, batches, ledger, addBatch, updateB
       <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Edit Batch":"Add New Batch"}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Field label="Select Item *">
-            <select required value={resolvedForm.itemId} onChange={e=>setForm({...form,itemId:e.target.value})} className={inputCls}>
+            <select required value={form.itemId} onChange={e=>setForm({...form,itemId:e.target.value})} className={inputCls}>
               <option value="">— Select Item —</option>
               {items.map(i=><option key={i.id} value={i.id}>{i.name} ({i.unit})</option>)}
             </select>
           </Field>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Batch Number *">
-              <input required value={resolvedForm.batchNo} onChange={e=>setForm({...form,batchNo:e.target.value})}
+              <input required value={form.batchNo} onChange={e=>setForm({...form,batchNo:e.target.value})}
                 placeholder="e.g. B2024-001" className={inputCls}/>
             </Field>
             <Field label="Expiry Date *">
-              <input required type="date" value={resolvedForm.expiryDate}
+              <input required type="date" value={form.expiryDate}
                 onChange={e=>setForm({...form,expiryDate:e.target.value})} className={inputCls}/>
             </Field>
           </div>
           <div className="grid grid-cols-3 gap-4">
             <Field label="Quantity *">
-              <input required type="number" min="0" value={resolvedForm.quantity}
+              <input required type="number" min="0" value={form.quantity}
                 onChange={e=>setForm({...form,quantity:e.target.value})} placeholder="0" className={inputCls}/>
             </Field>
             <Field label="Purchase ₹">
-              <input type="number" min="0" step="0.01" value={resolvedForm.purchasePrice}
+              <input type="number" min="0" step="0.01" value={form.purchasePrice}
                 onChange={e=>setForm({...form,purchasePrice:e.target.value})} placeholder="0.00" className={inputCls}/>
             </Field>
             <Field label="MRP ₹">
-              <input type="number" min="0" step="0.01" value={resolvedForm.mrp}
+              <input type="number" min="0" step="0.01" value={form.mrp}
                 onChange={e=>setForm({...form,mrp:e.target.value})} placeholder="0.00" className={inputCls}/>
             </Field>
           </div>
 
-          {/* Supplier dropdown from Ledger */}
           <Field label="Supplier">
-            <select value={resolvedForm.supplierId === "__pending__" ? "" : (resolvedForm.supplierId || "")}
-              onChange={e => handleSupplierChange(e.target.value)} className={inputCls}>
+            <select value={form.supplierId || ""}
+              onChange={e=>handleSupplierChange(e.target.value)} className={inputCls}>
               <option value="">— Select Supplier —</option>
-              {ledger.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+              {localLedger.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
               <option value="__other__">➕ Other (Add New Supplier)</option>
             </select>
           </Field>
 
-          {/* Inline "Other" input */}
           {showOtherInput && (
             <div className="flex gap-2 items-end p-3 bg-teal-50 rounded-xl border border-teal-100">
               <div className="flex-1">
                 <label className="block text-xs font-semibold text-teal-700 mb-1.5 uppercase tracking-wide">New Supplier Name</label>
                 <input value={otherName} onChange={e=>setOtherName(e.target.value)}
                   placeholder="Enter supplier name…" className={inputCls}
-                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSaveOther(); }}}
+                  onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); handleSaveOther(); }}}
                   autoFocus/>
               </div>
               <button type="button" onClick={handleSaveOther} disabled={savingOther || !otherName.trim()}
