@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Package, Eye, EyeOff, Mail, Lock, User, ArrowLeft } from "lucide-react";
 import { login, signup, forgotPassword } from "../firebase/auth";
+import { ADMIN_EMAIL } from "../firebase/config";
 
 export default function Auth() {
   const [mode,     setMode]     = useState("login"); // login | signup | forgot
@@ -34,9 +35,10 @@ export default function Auth() {
     try {
       if (mode === "login") {
         await login(email, password);
-        // App.jsx will detect auth change and redirect automatically
+
       } else if (mode === "signup") {
         await signup(email, password, name);
+
       } else if (mode === "forgot") {
         await forgotPassword(email);
         setSuccess("Password reset email sent! Check your inbox.");
@@ -90,7 +92,6 @@ export default function Auth() {
       <div className="flex-1 flex items-center justify-center p-6 bg-slate-50">
         <div className="w-full max-w-md">
 
-          {/* Logo on mobile */}
           <div className="lg:hidden flex items-center gap-2 mb-8">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{background:"linear-gradient(135deg,#0f766e,#0d9488)"}}>
               <Package size={16} className="text-white"/>
@@ -100,7 +101,6 @@ export default function Auth() {
 
           <div className="bg-white rounded-2xl shadow-xl border border-slate-100 p-8">
 
-            {/* Back button for forgot password */}
             {mode === "forgot" && (
               <button onClick={()=>{ setMode("login"); reset(); }}
                 className="flex items-center gap-1.5 text-slate-500 text-sm hover:text-slate-700 mb-5 transition-colors">
@@ -108,7 +108,6 @@ export default function Auth() {
               </button>
             )}
 
-            {/* Heading */}
             <div className="mb-6">
               <h2 className="text-2xl font-bold text-slate-800" style={{fontFamily:"'Syne',sans-serif"}}>
                 {mode === "login"  ? "Welcome back"      :
@@ -116,13 +115,12 @@ export default function Auth() {
                                     "Reset password"}
               </h2>
               <p className="text-slate-500 text-sm mt-1">
-                {mode === "login"  ? "Sign in to your InvenPro account"       :
+                {mode === "login"  ? "Sign in to your InvenPro account"        :
                  mode === "signup" ? "Set up your inventory management system" :
                                     "We'll send a reset link to your email"}
               </p>
             </div>
 
-            {/* Error / Success */}
             {error && (
               <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
                 {error}
@@ -134,10 +132,8 @@ export default function Auth() {
               </div>
             )}
 
-            {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
 
-              {/* Name — signup only */}
               {mode === "signup" && (
                 <div className="relative">
                   <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
@@ -146,14 +142,12 @@ export default function Auth() {
                 </div>
               )}
 
-              {/* Email */}
               <div className="relative">
                 <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
                 <input required type="email" value={email} onChange={e=>setEmail(e.target.value)}
                   placeholder="Email address" className={inputCls}/>
               </div>
 
-              {/* Password — not on forgot */}
               {mode !== "forgot" && (
                 <div className="relative">
                   <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
@@ -168,17 +162,6 @@ export default function Auth() {
                 </div>
               )}
 
-              {/* Forgot password link */}
-              {mode === "login" && (
-                <div className="flex justify-end">
-                  <button type="button" onClick={()=>{ setMode("forgot"); reset(); }}
-                    className="text-xs text-teal-600 hover:text-teal-700 font-medium">
-                    Forgot password?
-                  </button>
-                </div>
-              )}
-
-              {/* Submit */}
               <button type="submit" disabled={loading}
                 className="w-full py-3 rounded-xl text-white text-sm font-semibold shadow-lg
                   hover:shadow-xl transition-all hover:-translate-y-0.5
@@ -191,13 +174,31 @@ export default function Auth() {
               </button>
             </form>
 
-            {/* Switch mode */}
-            {mode !== "forgot" && (
+            {mode === "login" && (
               <p className="text-center text-sm text-slate-500 mt-5">
-                {mode === "login" ? "Don't have an account? " : "Already have an account? "}
-                <button onClick={()=>{ setMode(mode==="login"?"signup":"login"); reset(); }}
+                Trouble signing in?{" "}
+                <button onClick={()=>{ setMode("forgot"); reset(); }}
                   className="text-teal-600 font-semibold hover:text-teal-700 transition-colors">
-                  {mode === "login" ? "Sign up" : "Sign in"}
+                  Reset password
+                </button>
+              </p>
+            )}
+            {mode === "forgot" && (
+              <p className="text-center text-sm text-slate-500 mt-5">
+                Remember it?{" "}
+                <button onClick={()=>{ setMode("login"); reset(); }}
+                  className="text-teal-600 font-semibold hover:text-teal-700 transition-colors">
+                  Back to login
+                </button>
+              </p>
+            )}
+
+            {/* Tiny link for admin to create the first account */}
+            {mode === "login" && (
+              <p className="text-center mt-3">
+                <button onClick={()=>{ setMode("signup"); reset(); }}
+                  className="text-xs text-slate-300 hover:text-slate-400 transition-colors">
+                  Admin account setup
                 </button>
               </p>
             )}

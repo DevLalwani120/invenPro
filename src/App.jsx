@@ -1,16 +1,20 @@
 import { useState } from "react";
 import {
   LayoutDashboard, Package, Layers, BookUser,
-  Menu, X, Bell, RefreshCw, LogOut,
+  Menu, X, RefreshCw, LogOut, ShieldCheck,
 } from "lucide-react";
 import Dashboard    from "./pages/Dashboard";
 import ItemMaster   from "./pages/ItemMaster";
 import BatchManager from "./pages/BatchManager";
 import LedgerMaster from "./pages/LedgerMaster";
+import AdminPanel   from "./pages/AdminPanel";
 import Auth         from "./pages/Auth";
-import { useInventory } from "./hooks/useInventory";
-import { useAuth }      from "./hooks/useAuth";
-import { logout }       from "./firebase/auth";
+import AlertBell    from "./components/AlertBell";
+import { useInventory }  from "./hooks/useInventory";
+import { useAuth }       from "./hooks/useAuth";
+import { useAdmin }      from "./hooks/useAdmin";
+import { logout }        from "./firebase/auth";
+import { ADMIN_EMAIL }   from "./firebase/config";
 
 const NAV = [
   { id:"dashboard", label:"Dashboard",     icon:LayoutDashboard },
@@ -23,10 +27,9 @@ export default function App() {
   const [page,     setPage]     = useState("dashboard");
   const [sideOpen, setSideOpen] = useState(false);
 
-  // ── Auth — must be before any early returns ──────────────────
   const { user, loading: authLoading } = useAuth();
+  const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
-  // ── Inventory data ────────────────────────────────────────────
   const {
     items, batches, ledger, stockMap,
     lowStockItems, expiringBatches, expiredBatches,
@@ -36,9 +39,21 @@ export default function App() {
     addLedger, updateLedger, deleteLedger,
   } = useInventory();
 
+const {
+  categories, units, users, loginLogs,
+  loading: adminLoading, error: adminError, refetch: adminRefetch,
+  addCategory, updateCategory, deleteCategory,
+  addUnit, updateUnit, deleteUnit,
+  updateUser,
+} = useAdmin();
+
   const navigate = (id) => { setPage(id); setSideOpen(false); };
 
-  // ── Auth loading screen ───────────────────────────────────────
+  const itemMap = Object.fromEntries(items.map(i => [i.id, i]));
+  const enrichedLowStock = lowStockItems.map(item => ({
+    ...item, _stock: stockMap[item.id] ?? 0
+  }));
+
   if (authLoading) return (
     <div className="h-screen flex items-center justify-center bg-slate-50">
       <div className="flex flex-col items-center gap-3 text-slate-400">
@@ -48,10 +63,8 @@ export default function App() {
     </div>
   );
 
-  // ── Not logged in ─────────────────────────────────────────────
   if (!user) return <Auth/>;
 
-  // ── Main app ──────────────────────────────────────────────────
   return (
     <div className="h-screen flex overflow-hidden"
       style={{background:"#f8fafc", fontFamily:"'DM Sans',sans-serif"}}>
@@ -60,13 +73,11 @@ export default function App() {
         <div className="fixed inset-0 bg-black/40 z-30 lg:hidden" onClick={()=>setSideOpen(false)}/>
       )}
 
-      {/* ── Sidebar ── */}
       <aside className={`fixed top-0 left-0 h-full w-64 z-40 flex flex-col transition-transform duration-300
         lg:translate-x-0 lg:static lg:shadow-none shadow-2xl
         ${sideOpen ? "translate-x-0" : "-translate-x-full"}`}
         style={{background:"linear-gradient(160deg,#0f2027,#203a43,#0f766e)"}}>
 
-        {/* Logo */}
         <div className="px-6 py-7 flex items-center justify-between shrink-0">
           <div>
             <div className="flex items-center gap-2.5">
@@ -77,14 +88,15 @@ export default function App() {
                 InvenPro
               </span>
             </div>
-            <p className="text-teal-300/60 text-xs mt-1.5 ml-0.5">Inventory Management</p>
+            <p className="text-teal-300/60 text-xs mt-1.5 ml-0.5">
+              {isAdmin ? "Admin Dashboard" : "Inventory Management"}
+            </p>
           </div>
           <button onClick={()=>setSideOpen(false)} className="lg:hidden text-white/50 hover:text-white">
             <X size={20}/>
           </button>
         </div>
 
-        {/* Nav links */}
         <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
           {NAV.map(({ id, label, icon: Icon }) => {
             const active = page === id;
@@ -102,51 +114,63 @@ export default function App() {
               </button>
             );
           })}
+
+          {isAdmin && (
+            <>
+              <div className="px-4 pt-3 pb-1">
+                <p className="text-white/30 text-xs font-semibold uppercase tracking-wide">Administration</p>
+              </div>
+              <button onClick={()=>navigate("admin")}
+                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium transition-all
+                  ${page === "admin" ? "bg-white/15 text-white shadow-sm" : "text-white/60 hover:bg-white/8 hover:text-white"}`}>
+                <ShieldCheck size={17}/>
+                Admin Panel
+              </button>
+            </>
+          )}
         </nav>
 
-        {/* Bottom — user info + logout */}
         <div className="p-3 m-3 space-y-2 shrink-0">
-          {/* User info */}
           <div className="p-3 rounded-xl bg-white/8 border border-white/10">
-            <p className="text-white/40 text-xs font-medium uppercase tracking-wide mb-1">Logged in as</p>
-            <p className="text-white/90 text-sm font-semibold truncate">
-              {user.displayName || "User"}
-            </p>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-white/40 text-xs font-medium uppercase tracking-wide">Logged in as</p>
+              {isAdmin && (
+                <span className="text-[10px] font-bold bg-purple-500/30 text-purple-200 px-1.5 py-0.5 rounded-md">ADMIN</span>
+              )}
+            </div>
+            <p className="text-white/90 text-sm font-semibold truncate">{user.displayName || "User"}</p>
             <p className="text-teal-300/60 text-xs truncate">{user.email}</p>
           </div>
-          {/* Logout button */}
           <button onClick={logout}
             className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl
-              text-white/60 hover:text-white hover:bg-red-500/20
-              text-sm font-medium transition-all">
+              text-white/60 hover:text-white hover:bg-red-500/20 text-sm font-medium transition-all">
             <LogOut size={15}/> Sign Out
           </button>
         </div>
       </aside>
 
-      {/* ── Main area ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
-        {/* Navbar */}
-        <header className="shrink-0 bg-white border-b border-slate-100 px-4 lg:px-8 py-5 flex items-center gap-4 shadow-sm">
+        <header className="shrink-0 bg-white border-b border-slate-100 px-4 lg:px-8 py-5 flex items-center gap-3 shadow-sm">
           <button onClick={()=>setSideOpen(true)}
             className="lg:hidden p-2 rounded-xl hover:bg-slate-100 text-slate-600">
             <Menu size={20}/>
           </button>
           <div className="flex-1">
             <h2 className="text-slate-800 font-bold text-lg" style={{fontFamily:"'Syne',sans-serif"}}>
-              {NAV.find(n=>n.id===page)?.label}
+              {page === "admin" ? "Admin Panel" : NAV.find(n=>n.id===page)?.label}
             </h2>
             <p className="text-slate-400 text-xs mt-0.5">InvenPro · Inventory Management System</p>
           </div>
-          {totalAlerts > 0 && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 border border-red-100">
-              <Bell size={15} className="text-red-500 animate-bounce"/>
-              <span className="text-red-500 text-xs font-bold">
-                {totalAlerts} alert{totalAlerts > 1 ? "s" : ""}
-              </span>
-            </div>
-          )}
+
+          <AlertBell
+            expiringBatches={expiringBatches}
+            expiredBatches={expiredBatches}
+            lowStockItems={enrichedLowStock}
+            itemMap={itemMap}
+            onNavigate={navigate}
+          />
+
           <button onClick={refetch}
             className="p-2.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
             title="Refresh data">
@@ -154,7 +178,6 @@ export default function App() {
           </button>
         </header>
 
-        {/* Page content */}
         <main className="flex-1 overflow-auto p-4 lg:p-8">
           {loading && (
             <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3">
@@ -166,10 +189,6 @@ export default function App() {
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-6 text-sm text-red-600">
               <strong>Firebase Error:</strong> {error}
-              <br/>
-              <span className="text-xs text-red-400 mt-1 block">
-                Check your Firebase config in src/firebase/config.js and ensure Firestore rules allow read/write.
-              </span>
             </div>
           )}
 
@@ -179,7 +198,8 @@ export default function App() {
           )}
           {!loading && page === "items" && (
             <ItemMaster items={items} stockMap={stockMap}
-              addItem={addItem} updateItem={updateItem} deleteItem={deleteItem}/>
+              addItem={addItem} updateItem={updateItem} deleteItem={deleteItem}
+              categories={categories} units={units}/>
           )}
           {!loading && page === "batches" && (
             <BatchManager items={items} batches={batches} ledger={ledger}
@@ -189,6 +209,24 @@ export default function App() {
           {!loading && page === "ledger" && (
             <LedgerMaster ledger={ledger}
               addLedger={addLedger} updateLedger={updateLedger} deleteLedger={deleteLedger}/>
+          )}
+
+   {!loading && page === "admin" && isAdmin && (
+  <AdminPanel
+    categories={categories} units={units}
+    users={users} loginLogs={loginLogs}
+    loading={adminLoading} error={adminError} refetch={adminRefetch}
+    addCategory={addCategory} updateCategory={updateCategory} deleteCategory={deleteCategory}
+    addUnit={addUnit} updateUnit={updateUnit} deleteUnit={deleteUnit}
+    updateUser={updateUser}
+  />
+)}
+          {!loading && page === "admin" && !isAdmin && (
+            <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3">
+              <ShieldCheck size={48} className="opacity-20"/>
+              <p className="font-semibold text-slate-500">Access Denied</p>
+              <p className="text-sm">You don't have permission to view this page.</p>
+            </div>
           )}
         </main>
       </div>

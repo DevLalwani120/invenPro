@@ -2,11 +2,9 @@ import { useState } from "react";
 import { Plus, Pencil, Trash2, Package } from "lucide-react";
 import { Toast, useToast, ConfirmModal, Modal, Field, inputCls, PrimaryBtn, SaveBtn, Empty, StatusBadge } from "../components/ui";
 
-const CATEGORIES = ["Medicine","Surgical","FMCG","Grocery","Electronics","Other"];
-const UNITS      = ["Piece","Strip","Box","Bottle","Kg","Gram","Litre","ML","Packet","Tablet"];
-const EMPTY      = { name:"", category:"Medicine", unit:"Piece", description:"", minStockLevel:"" };
+const EMPTY = { name:"", category:"", unit:"", description:"", minStockLevel:"" };
 
-export default function ItemMaster({ items, stockMap, addItem, updateItem, deleteItem }) {
+export default function ItemMaster({ items, stockMap, addItem, updateItem, deleteItem, categories, units }) {
   const [form,   setForm]   = useState(EMPTY);
   const [editId, setEditId] = useState(null);
   const [modal,  setModal]  = useState(false);
@@ -14,10 +12,18 @@ export default function ItemMaster({ items, stockMap, addItem, updateItem, delet
   const [search, setSearch] = useState("");
   const [toast,  showToast] = useToast();
 
-  const openAdd  = ()     => { setForm(EMPTY); setEditId(null); setModal(true); };
+  // Only active categories and units
+  const activeCategories = categories.filter(c => c.active !== false);
+  const activeUnits      = units.filter(u => u.active !== false);
+
+  const openAdd  = ()     => {
+    setForm({ ...EMPTY, category: activeCategories[0]?.name || "", unit: activeUnits[0]?.name || "" });
+    setEditId(null); setModal(true);
+  };
   const openEdit = (item) => {
-    setForm({ name:item.name||"", category:item.category||"Medicine",
-      unit:item.unit||"Piece", description:item.description||"", minStockLevel:item.minStockLevel??"" });
+    setForm({ name:item.name||"", category:item.category||"",
+      unit:item.unit||"", description:item.description||"",
+      minStockLevel:item.minStockLevel??"" });
     setEditId(item.id); setModal(true);
   };
 
@@ -42,7 +48,7 @@ export default function ItemMaster({ items, stockMap, addItem, updateItem, delet
     <div className="space-y-6">
       <Toast toast={toast}/>
       <ConfirmModal open={!!delId} onCancel={()=>setDelId(null)} onConfirm={handleDelete}
-        title="Delete Item?" message="This will permanently delete the item from your catalog."/>
+        title="Delete Item?" message="This will permanently delete the item and all its batches."/>
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -111,12 +117,12 @@ export default function ItemMaster({ items, stockMap, addItem, updateItem, delet
           <div className="grid grid-cols-2 gap-4">
             <Field label="Category">
               <select value={form.category} onChange={e=>setForm({...form,category:e.target.value})} className={inputCls}>
-                {CATEGORIES.map(c=><option key={c}>{c}</option>)}
+                {activeCategories.map(c=><option key={c.id||c.name} value={c.name}>{c.name}</option>)}
               </select>
             </Field>
             <Field label="Unit">
               <select value={form.unit} onChange={e=>setForm({...form,unit:e.target.value})} className={inputCls}>
-                {UNITS.map(u=><option key={u}>{u}</option>)}
+                {activeUnits.map(u=><option key={u.id||u.name} value={u.name}>{u.name}</option>)}
               </select>
             </Field>
           </div>

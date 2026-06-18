@@ -20,3 +20,5 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+// ✅ SET YOUR ADMIN EMAIL HERE — only this email sees Admin Panel
+export const ADMIN_EMAIL = "devlalwani120@gmail.com";
