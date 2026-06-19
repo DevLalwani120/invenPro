@@ -6,7 +6,6 @@ import {
 import { db } from "./config";
 
 // ── Categories ────────────────────────────────────────────────
-// No auto-seeding — admin adds categories manually from Admin Panel
 export const getCategories = async () => {
   const snap = await getDocs(query(collection(db, "categories"), orderBy("name")));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -17,7 +16,6 @@ export const updateCategory = (id, data) => updateDoc(doc(db, "categories", id),
 export const deleteCategory = (id)       => deleteDoc(doc(db, "categories", id));
 
 // ── Units ─────────────────────────────────────────────────────
-// No auto-seeding — admin adds units manually from Admin Panel
 export const getUnits = async () => {
   const snap = await getDocs(query(collection(db, "units"), orderBy("name")));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -26,6 +24,16 @@ export const getUnits = async () => {
 export const addUnit    = (name)     => addDoc(collection(db, "units"), { name, active: true, createdAt: serverTimestamp() });
 export const updateUnit = (id, data) => updateDoc(doc(db, "units", id), data);
 export const deleteUnit = (id)       => deleteDoc(doc(db, "units", id));
+
+// ── Events (Add / Less) — used in Phase 2 ──────────────────────
+export const getEvents = async () => {
+  const snap = await getDocs(query(collection(db, "events"), orderBy("name")));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+};
+
+export const addEvent    = (name, type) => addDoc(collection(db, "events"), { name, type, active: true, createdAt: serverTimestamp() });
+export const updateEvent = (id, data)   => updateDoc(doc(db, "events", id), data);
+export const deleteEvent = (id)         => deleteDoc(doc(db, "events", id));
 
 // ── Users (stored in Firestore after signup) ──────────────────
 export const getUsers = async () => {

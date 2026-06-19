@@ -26,13 +26,9 @@ export default function BatchManager({ items, batches, ledger, addBatch, updateB
   const [showOtherInput, setShowOtherInput] = useState(false);
   const [otherName,      setOtherName]      = useState("");
   const [savingOther,    setSavingOther]    = useState(false);
+  const [localLedger,    setLocalLedger]    = useState(ledger);
+  const [prevLedger,     setPrevLedger]     = useState(ledger);
 
-  // Local ledger copy — we can add to this without re-rendering whole app
-  const [localLedger, setLocalLedger] = useState(ledger);
-
-  // Keep local ledger in sync when parent ledger prop changes
-  // but only when modal is closed to avoid disrupting the form
-  const [prevLedger, setPrevLedger] = useState(ledger);
   if (ledger !== prevLedger && !modal) {
     setPrevLedger(ledger);
     setLocalLedger(ledger);
@@ -40,6 +36,7 @@ export default function BatchManager({ items, batches, ledger, addBatch, updateB
 
   const itemMap   = Object.fromEntries(items.map(i => [i.id, i]));
   const ledgerMap = Object.fromEntries(localLedger.map(l => [l.id, l]));
+  const selectedItem = itemMap[form.itemId];
 
   const openAdd  = () => {
     setForm(EMPTY);
@@ -78,22 +75,14 @@ export default function BatchManager({ items, batches, ledger, addBatch, updateB
     setSavingOther(true);
     const nameToSave = otherName.trim();
     try {
-      // Save to Firestore — get back the new doc reference with real ID
       const docRef = await addLedgerFn({
         name: nameToSave, type: "Supplier", phone: "", address: ""
       });
-
-      // Add to LOCAL ledger state only — modal stays open, no app re-render
       const newEntry = { id: docRef.id, name: nameToSave, type: "Supplier", phone: "", address: "" };
       setLocalLedger(prev => [newEntry, ...prev]);
-
-      // Auto-select the new supplier in the form
       setForm(f => ({ ...f, supplierId: docRef.id }));
-
-      // Hide the input
       setShowOtherInput(false);
       setOtherName("");
-
       showToast(`"${nameToSave}" added!`);
     } catch {
       showToast("Error saving supplier", "error");
@@ -119,6 +108,15 @@ export default function BatchManager({ items, batches, ledger, addBatch, updateB
   };
 
   const list = batches.filter(b => filter === "all" || b.itemId === filter);
+
+  // Live secondary-unit conversion preview
+  const secondaryPreview = (() => {
+    if (!selectedItem?.hasSecondaryUnit || !selectedItem?.conversionRate || !form.quantity) return null;
+    const qty = Number(form.quantity);
+    if (isNaN(qty)) return null;
+    const converted = (qty * Number(selectedItem.conversionRate)).toFixed(2).replace(/\.?0+$/, "");
+    return `${qty} ${selectedItem.unit} = ${converted} ${selectedItem.secondaryUnit}`;
+  })();
 
   return (
     <div className="space-y-6">
@@ -160,6 +158,9 @@ export default function BatchManager({ items, batches, ledger, addBatch, updateB
                   {list.map((b, idx) => {
                     const item     = itemMap[b.itemId];
                     const supplier = ledgerMap[b.supplierId];
+                    const secQty   = item?.hasSecondaryUnit && item?.conversionRate
+                      ? (b.quantity * Number(item.conversionRate)).toFixed(2).replace(/\.?0+$/, "")
+                      : null;
                     return (
                       <tr key={b.id} className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
                         <td className="px-5 py-4 text-slate-400 text-xs">{idx+1}</td>
@@ -170,6 +171,11 @@ export default function BatchManager({ items, batches, ledger, addBatch, updateB
                         <td className="px-5 py-4">
                           <span className="font-bold text-slate-800">{b.quantity}</span>
                           <span className="text-slate-400 text-xs ml-1">{item?.unit}</span>
+                          {secQty && (
+                            <span className="text-teal-600 text-xs ml-1.5 bg-teal-50 px-1.5 py-0.5 rounded-md">
+                              ({secQty} {item.secondaryUnit})
+                            </span>
+                          )}
                         </td>
                         <td className="px-5 py-4 text-slate-600">{b.purchasePrice!=null?`₹${b.purchasePrice}`:"—"}</td>
                         <td className="px-5 py-4 text-slate-600">{b.mrp!=null?`₹${b.mrp}`:"—"}</td>
@@ -208,7 +214,7 @@ export default function BatchManager({ items, batches, ledger, addBatch, updateB
             </Field>
           </div>
           <div className="grid grid-cols-3 gap-4">
-            <Field label="Quantity *">
+            <Field label={`Quantity * (${selectedItem?.unit || "unit"})`}>
               <input required type="number" min="0" value={form.quantity}
                 onChange={e=>setForm({...form,quantity:e.target.value})} placeholder="0" className={inputCls}/>
             </Field>
@@ -221,6 +227,13 @@ export default function BatchManager({ items, batches, ledger, addBatch, updateB
                 onChange={e=>setForm({...form,mrp:e.target.value})} placeholder="0.00" className={inputCls}/>
             </Field>
           </div>
+
+          {/* Live secondary unit conversion preview */}
+          {secondaryPreview && (
+            <div className="px-4 py-2.5 bg-teal-50 border border-teal-100 rounded-xl text-sm text-teal-700 font-medium">
+              ⚖️ {secondaryPreview}
+            </div>
+          )}
 
           <Field label="Supplier">
             <select value={form.supplierId || ""}

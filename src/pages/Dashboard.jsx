@@ -13,6 +13,27 @@ function StatCard({ icon, label, value, bg, iconColor }) {
   );
 }
 
+function formatStock(item, stock) {
+  if (item.hasSecondaryUnit && item.conversionRate > 0) {
+    const secondaryQty = (stock * Number(item.conversionRate)).toFixed(2).replace(/\.?0+$/, "");
+    return (
+      <>
+        <span className="font-bold">{stock}</span>
+        <span className="text-slate-400 text-xs ml-1">{item.unit}</span>
+        <span className="text-teal-600 text-xs ml-1.5 bg-teal-50 px-1.5 py-0.5 rounded-md">
+          ({secondaryQty} {item.secondaryUnit})
+        </span>
+      </>
+    );
+  }
+  return (
+    <>
+      <span className="font-bold">{stock}</span>
+      <span className="text-slate-400 text-xs ml-1">{item.unit}</span>
+    </>
+  );
+}
+
 export default function Dashboard({ items, batches, stockMap, lowStockItems, expiringBatches, expiredBatches }) {
   const itemMap = Object.fromEntries(items.map(i => [i.id, i]));
   const today   = new Date();
@@ -143,9 +164,8 @@ export default function Dashboard({ items, batches, stockMap, lowStockItems, exp
                       <td className="px-5 py-4">
                         <span className="px-2 py-0.5 rounded-lg text-xs font-medium bg-teal-50 text-teal-700">{item.category}</span>
                       </td>
-                      <td className="px-5 py-4">
-                        <span className={`font-bold ${isLow?"text-red-500":"text-slate-800"}`}>{stock}</span>
-                        <span className="text-slate-400 text-xs ml-1">{item.unit}</span>
+                      <td className={`px-5 py-4 ${isLow ? "text-red-500" : "text-slate-800"}`}>
+                        {formatStock(item, stock)}
                       </td>
                       <td className="px-5 py-4 text-slate-500">{item.minStockLevel ?? "—"}</td>
                       <td className="px-5 py-4">

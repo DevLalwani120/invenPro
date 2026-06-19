@@ -198,7 +198,7 @@ export default function Auth() {
               <p className="text-center mt-3">
                 <button onClick={()=>{ setMode("signup"); reset(); }}
                   className="text-xs text-slate-300 hover:text-slate-400 transition-colors">
-                  Admin account setup
+                  Create Account - Sign Up
                 </button>
               </p>
             )}

@@ -1,16 +1,17 @@
 import { useState } from "react";
-import { Plus, Trash2, ShieldCheck, Users, Tag, Ruler, Clock, CheckCircle, XCircle, RefreshCw } from "lucide-react";
+import { Plus, Trash2, ShieldCheck, Users, Tag, Ruler, Clock, CheckCircle, XCircle, RefreshCw, Zap, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
 import { format } from "date-fns";
-import { Toast, useToast } from "../components/ui";
+import { Toast, useToast, Field, inputCls } from "../components/ui";
 
 const TABS = [
   { id:"categories", label:"Categories",   icon:Tag       },
   { id:"units",      label:"Units",        icon:Ruler     },
+  { id:"events",     label:"Event Master", icon:Zap        },
   { id:"users",      label:"Users",        icon:Users     },
   { id:"logs",       label:"Login Report", icon:Clock     },
 ];
 
-// ── Master list editor (used for both categories and units) ───
+// ── Master list editor (Categories / Units) ───────────────────
 function MasterList({ items, onAdd, onToggle, onDelete, noun }) {
   const [newName, setNewName] = useState("");
   const [saving,  setSaving]  = useState(false);
@@ -20,54 +21,35 @@ function MasterList({ items, onAdd, onToggle, onDelete, noun }) {
   const handleAdd = async () => {
     const name = newName.trim();
     if (!name) return;
-
-    // Prevent duplicate names (case-insensitive)
     const exists = items.some(i => i.name.toLowerCase() === name.toLowerCase());
-    if (exists) {
-      showToast(`"${name}" already exists`, "error");
-      return;
-    }
-
+    if (exists) { showToast(`"${name}" already exists`, "error"); return; }
     setSaving(true);
     try {
       await onAdd(name);
       setNewName("");
       showToast(`${noun} added!`);
-    } catch {
-      showToast(`Error adding ${noun}`, "error");
-    } finally {
-      setSaving(false);
-    }
+    } catch { showToast(`Error adding ${noun}`, "error"); }
+    finally   { setSaving(false); }
   };
 
   const handleToggle = async (item) => {
     setBusyId(item.id);
-    try {
-      await onToggle(item.id, { active: !(item.active !== false) });
-    } catch {
-      showToast("Error updating status", "error");
-    } finally {
-      setBusyId(null);
-    }
+    try { await onToggle(item.id, { active: !(item.active !== false) }); }
+    catch { showToast("Error updating status", "error"); }
+    finally { setBusyId(null); }
   };
 
   const handleDelete = async (item) => {
     if (!window.confirm(`Delete "${item.name}"? This cannot be undone.`)) return;
     setBusyId(item.id);
-    try {
-      await onDelete(item.id);
-      showToast(`${noun} deleted`);
-    } catch {
-      showToast(`Error deleting ${noun}`, "error");
-    } finally {
-      setBusyId(null);
-    }
+    try { await onDelete(item.id); showToast(`${noun} deleted`); }
+    catch { showToast(`Error deleting ${noun}`, "error"); }
+    finally { setBusyId(null); }
   };
 
   return (
     <div className="space-y-4">
       <Toast toast={toast}/>
-      {/* Add new */}
       <div className="flex gap-3">
         <input value={newName} onChange={e => setNewName(e.target.value)}
           placeholder={`New ${noun} name…`}
@@ -80,7 +62,6 @@ function MasterList({ items, onAdd, onToggle, onDelete, noun }) {
         </button>
       </div>
 
-      {/* List */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         {items.length === 0 ? (
           <div className="py-10 text-center text-slate-400 text-sm">
@@ -101,6 +82,132 @@ function MasterList({ items, onAdd, onToggle, onDelete, noun }) {
                 <tr key={item.id} className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
                   <td className="px-5 py-3.5 text-slate-400 text-xs">{idx+1}</td>
                   <td className="px-5 py-3.5 font-semibold text-slate-800">{item.name}</td>
+                  <td className="px-5 py-3.5">
+                    {item.active !== false
+                      ? <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg w-fit"><CheckCircle size={11}/>Active</span>
+                      : <span className="flex items-center gap-1 text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-1 rounded-lg w-fit"><XCircle size={11}/>Inactive</span>
+                    }
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <div className="flex gap-2">
+                      <button onClick={() => handleToggle(item)} disabled={busyId === item.id}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50
+                          ${item.active !== false
+                            ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
+                          }`}>
+                        {item.active !== false ? "Deactivate" : "Activate"}
+                      </button>
+                      <button onClick={() => handleDelete(item)} disabled={busyId === item.id}
+                        className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 transition-colors disabled:opacity-50">
+                        <Trash2 size={14}/>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Event Master tab — name + type (Add/Less) ──────────────────
+function EventMaster({ events, onAdd, onToggle, onDelete }) {
+  const [name,   setName]   = useState("");
+  const [type,   setType]   = useState("Add");
+  const [saving, setSaving] = useState(false);
+  const [busyId, setBusyId] = useState(null);
+  const [toast,  showToast] = useToast();
+
+  const handleAdd = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const exists = events.some(e => e.name.toLowerCase() === trimmed.toLowerCase());
+    if (exists) { showToast(`"${trimmed}" already exists`, "error"); return; }
+    setSaving(true);
+    try {
+      await onAdd(trimmed, type);
+      setName("");
+      showToast("Event added!");
+    } catch { showToast("Error adding event", "error"); }
+    finally   { setSaving(false); }
+  };
+
+  const handleToggle = async (item) => {
+    setBusyId(item.id);
+    try { await onToggle(item.id, { active: !(item.active !== false) }); }
+    catch { showToast("Error updating status", "error"); }
+    finally { setBusyId(null); }
+  };
+
+  const handleDelete = async (item) => {
+    if (!window.confirm(`Delete "${item.name}"? This cannot be undone.`)) return;
+    setBusyId(item.id);
+    try { await onDelete(item.id); showToast("Event deleted"); }
+    catch { showToast("Error deleting event", "error"); }
+    finally { setBusyId(null); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <Toast toast={toast}/>
+
+      {/* Add new event */}
+      <div className="flex gap-3 items-end">
+        <div className="flex-1">
+          <Field label="Event Name">
+            <input value={name} onChange={e => setName(e.target.value)}
+              placeholder="e.g. Damage, Bonus, Sample Given"
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAdd(); } }}
+              className={inputCls}/>
+          </Field>
+        </div>
+        <div className="w-40">
+          <Field label="Type">
+            <select value={type} onChange={e => setType(e.target.value)} className={inputCls}>
+              <option value="Add">Add (+)</option>
+              <option value="Less">Less (−)</option>
+            </select>
+          </Field>
+        </div>
+        <button onClick={handleAdd} disabled={saving || !name.trim()}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold disabled:opacity-50 transition-all whitespace-nowrap"
+          style={{background:"linear-gradient(135deg,#0f766e,#0d9488)"}}>
+          <Plus size={15}/>{saving ? "Adding…" : "Add Event"}
+        </button>
+      </div>
+
+      {/* List */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        {events.length === 0 ? (
+          <div className="py-10 text-center text-slate-400 text-sm">
+            No events yet — add your first one above
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold text-xs uppercase tracking-wide">
+                <th className="text-left px-5 py-3.5">#</th>
+                <th className="text-left px-5 py-3.5">Event Name</th>
+                <th className="text-left px-5 py-3.5">Type</th>
+                <th className="text-left px-5 py-3.5">Status</th>
+                <th className="text-left px-5 py-3.5">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {events.map((item, idx) => (
+                <tr key={item.id} className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
+                  <td className="px-5 py-3.5 text-slate-400 text-xs">{idx+1}</td>
+                  <td className="px-5 py-3.5 font-semibold text-slate-800">{item.name}</td>
+                  <td className="px-5 py-3.5">
+                    {item.type === "Add"
+                      ? <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg w-fit"><ArrowUpCircle size={12}/>Add (+)</span>
+                      : <span className="flex items-center gap-1 text-xs font-semibold text-red-500 bg-red-50 px-2 py-1 rounded-lg w-fit"><ArrowDownCircle size={12}/>Less (−)</span>
+                    }
+                  </td>
                   <td className="px-5 py-3.5">
                     {item.active !== false
                       ? <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg w-fit"><CheckCircle size={11}/>Active</span>
@@ -248,9 +355,10 @@ function LogsTab({ loginLogs }) {
 
 // ── Main Admin Page ───────────────────────────────────────────
 export default function AdminPanel({
-  categories, units, users, loginLogs, loading, error,
+  categories, units, events, users, loginLogs, loading, error,
   addCategory, updateCategory, deleteCategory,
   addUnit, updateUnit, deleteUnit,
+  addEvent, updateEvent, deleteEvent,
   updateUser, refetch,
 }) {
   const [tab, setTab] = useState("categories");
@@ -277,7 +385,6 @@ export default function AdminPanel({
         </div>
       )}
 
-      {/* Tabs */}
       <div className="flex gap-2 flex-wrap">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button key={id} onClick={() => setTab(id)}
@@ -290,13 +397,13 @@ export default function AdminPanel({
             <Icon size={15}/>{label}
             {id === "categories" && <span className="bg-white/20 text-xs px-1.5 py-0.5 rounded-md">{categories.length}</span>}
             {id === "units"      && <span className="bg-white/20 text-xs px-1.5 py-0.5 rounded-md">{units.length}</span>}
+            {id === "events"     && <span className="bg-white/20 text-xs px-1.5 py-0.5 rounded-md">{events.length}</span>}
             {id === "users"      && <span className="bg-white/20 text-xs px-1.5 py-0.5 rounded-md">{users.length}</span>}
             {id === "logs"       && <span className="bg-white/20 text-xs px-1.5 py-0.5 rounded-md">{loginLogs.length}</span>}
           </button>
         ))}
       </div>
 
-      {/* Tab content */}
       {loading ? (
         <div className="flex items-center justify-center py-16 text-slate-400 gap-3">
           <div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"/>
@@ -305,18 +412,16 @@ export default function AdminPanel({
       ) : (
         <>
           {tab === "categories" && (
-            <MasterList
-              items={categories} noun="Category"
-              onAdd={addCategory}
-              onToggle={updateCategory}
-              onDelete={deleteCategory}/>
+            <MasterList items={categories} noun="Category"
+              onAdd={addCategory} onToggle={updateCategory} onDelete={deleteCategory}/>
           )}
           {tab === "units" && (
-            <MasterList
-              items={units} noun="Unit"
-              onAdd={addUnit}
-              onToggle={updateUnit}
-              onDelete={deleteUnit}/>
+            <MasterList items={units} noun="Unit"
+              onAdd={addUnit} onToggle={updateUnit} onDelete={deleteUnit}/>
+          )}
+          {tab === "events" && (
+            <EventMaster events={events}
+              onAdd={addEvent} onToggle={updateEvent} onDelete={deleteEvent}/>
           )}
           {tab === "users" && (
             <UsersTab users={users} onToggle={updateUser}/>

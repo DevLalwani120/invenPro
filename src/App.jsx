@@ -39,13 +39,14 @@ export default function App() {
     addLedger, updateLedger, deleteLedger,
   } = useInventory();
 
-const {
-  categories, units, users, loginLogs,
-  loading: adminLoading, error: adminError, refetch: adminRefetch,
-  addCategory, updateCategory, deleteCategory,
-  addUnit, updateUnit, deleteUnit,
-  updateUser,
-} = useAdmin();
+  const {
+    categories, units, events, users, loginLogs,
+    loading: adminLoading, error: adminError, refetch: adminRefetch,
+    addCategory, updateCategory, deleteCategory,
+    addUnit, updateUnit, deleteUnit,
+    addEvent, updateEvent, deleteEvent,
+    updateUser,
+  } = useAdmin();
 
   const navigate = (id) => { setPage(id); setSideOpen(false); };
 
@@ -211,16 +212,17 @@ const {
               addLedger={addLedger} updateLedger={updateLedger} deleteLedger={deleteLedger}/>
           )}
 
-   {!loading && page === "admin" && isAdmin && (
-  <AdminPanel
-    categories={categories} units={units}
-    users={users} loginLogs={loginLogs}
-    loading={adminLoading} error={adminError} refetch={adminRefetch}
-    addCategory={addCategory} updateCategory={updateCategory} deleteCategory={deleteCategory}
-    addUnit={addUnit} updateUnit={updateUnit} deleteUnit={deleteUnit}
-    updateUser={updateUser}
-  />
-)}
+          {!loading && page === "admin" && isAdmin && (
+            <AdminPanel
+              categories={categories} units={units} events={events}
+              users={users} loginLogs={loginLogs}
+              loading={adminLoading} error={adminError} refetch={adminRefetch}
+              addCategory={addCategory} updateCategory={updateCategory} deleteCategory={deleteCategory}
+              addUnit={addUnit} updateUnit={updateUnit} deleteUnit={deleteUnit}
+              addEvent={addEvent} updateEvent={updateEvent} deleteEvent={deleteEvent}
+              updateUser={updateUser}
+            />
+          )}
           {!loading && page === "admin" && !isAdmin && (
             <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3">
               <ShieldCheck size={48} className="opacity-20"/>
