@@ -1,23 +1,26 @@
 import { useState } from "react";
 import {
-  LayoutDashboard, Package, Layers, BookUser,
+  LayoutDashboard, Package, Layers, BookUser, FileText,
   Menu, X, RefreshCw, LogOut, ShieldCheck,
 } from "lucide-react";
 import Dashboard    from "./pages/Dashboard";
 import ItemMaster   from "./pages/ItemMaster";
 import BatchManager from "./pages/BatchManager";
 import LedgerMaster from "./pages/LedgerMaster";
+import EntrySheet   from "./pages/EntrySheet";
 import AdminPanel   from "./pages/AdminPanel";
 import Auth         from "./pages/Auth";
 import AlertBell    from "./components/AlertBell";
 import { useInventory }  from "./hooks/useInventory";
 import { useAuth }       from "./hooks/useAuth";
 import { useAdmin }      from "./hooks/useAdmin";
+import { useEntries }    from "./hooks/useEntries";
 import { logout }        from "./firebase/auth";
 import { ADMIN_EMAIL }   from "./firebase/config";
 
 const NAV = [
   { id:"dashboard", label:"Dashboard",     icon:LayoutDashboard },
+  { id:"entry",     label:"Entry Sheet",   icon:FileText         },
   { id:"items",     label:"Item Master",   icon:Package          },
   { id:"batches",   label:"Batch Manager", icon:Layers           },
   { id:"ledger",    label:"Ledger Master", icon:BookUser         },
@@ -47,6 +50,11 @@ export default function App() {
     addEvent, updateEvent, deleteEvent,
     updateUser,
   } = useAdmin();
+
+  const {
+    entries, loading: entriesLoading, error: entriesError,
+    addEntry, updateEntry, deleteEntry,
+  } = useEntries();
 
   const navigate = (id) => { setPage(id); setSideOpen(false); };
 
@@ -197,6 +205,16 @@ export default function App() {
             <Dashboard items={items} batches={batches} stockMap={stockMap}
               lowStockItems={lowStockItems} expiringBatches={expiringBatches} expiredBatches={expiredBatches}/>
           )}
+
+          {!loading && page === "entry" && (
+            <EntrySheet
+              items={items} batches={batches} stockMap={stockMap}
+              events={events} ledger={ledger}
+              entries={entries}
+              addEntry={addEntry} updateEntry={updateEntry} deleteEntry={deleteEntry}
+            />
+          )}
+
           {!loading && page === "items" && (
             <ItemMaster items={items} stockMap={stockMap}
               addItem={addItem} updateItem={updateItem} deleteItem={deleteItem}

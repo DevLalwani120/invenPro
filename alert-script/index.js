@@ -151,7 +151,7 @@ function buildHTML({ itemMap, ledgerMap, stockMap, expiredBatches, expiringBatch
     <div style="margin-bottom:28px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
         <span style="font-size:18px;">🟠</span>
-        <span style="font-weight:800;color:#ea580c;font-size:15px;">EXPIRING IN 15 DAYS — ${expiringBatches.length} batch${expiringBatches.length>1?"es":""}</span>
+        <span style="font-weight:800;color:#ea580c;font-size:15px;">EXPIRING SOON — ${expiringBatches.length} batch${expiringBatches.length>1?"es":""}</span>
       </div>
       <table style="width:100%;border-collapse:collapse;border-radius:12px;overflow:hidden;border:1px solid #f1f5f9;">
         <thead><tr>

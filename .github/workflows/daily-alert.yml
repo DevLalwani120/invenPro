@@ -2,7 +2,7 @@ name: Daily Inventory Alert
 
 on:
   schedule:
-    - cron: '0 3 * * *'   # 9:00 AM IST (UTC+5:30 = 3:30 AM UTC)
+    - cron: '17 1 * * *'   # Targets ~6:47 AM IST, runs early to land in 6-10 AM window
   workflow_dispatch:         # manual trigger from GitHub Actions tab anytime
 
 jobs:
