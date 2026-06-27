@@ -41,11 +41,11 @@ export function ConfirmModal({ open, onCancel, onConfirm, title, message }) {
   );
 }
 
-export function Modal({ open, onClose, title, children }) {
+export function Modal({ open, onClose, title, children, wide = false }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[92vh] overflow-y-auto">
+      <div className={`bg-white rounded-2xl w-full shadow-2xl max-h-[92vh] overflow-y-auto ${wide ? "max-w-3xl" : "max-w-lg"}`}>
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100">
           <h2 className="font-bold text-slate-800 text-base" style={{fontFamily:"'Syne',sans-serif"}}>{title}</h2>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors"><X size={18}/></button>

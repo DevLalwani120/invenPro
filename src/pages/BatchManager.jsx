@@ -3,6 +3,7 @@ import { Plus, Pencil, Trash2, CalendarClock } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { Toast, useToast, ConfirmModal, Modal, Field, inputCls, PrimaryBtn, SaveBtn, Empty } from "../components/ui";
 import { addLedger as addLedgerFn } from "../firebase/ledger";
+import { computeClosingQty } from "../firebase/stock";
 
 const EMPTY = { itemId:"", batchNo:"", expiryDate:"", quantity:"", purchasePrice:"", mrp:"", supplierId:"" };
 
@@ -16,7 +17,7 @@ function ExpiryBadge({ date }) {
   return <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-600">Good</span>;
 }
 
-export default function BatchManager({ items, batches, ledger, addBatch, updateBatch, deleteBatch }) {
+export default function BatchManager({ items, batches, ledger, batchTxnMap, addBatch, updateBatch, deleteBatch }) {
   const [form,           setForm]           = useState(EMPTY);
   const [editId,         setEditId]         = useState(null);
   const [modal,          setModal]          = useState(false);
@@ -36,7 +37,6 @@ export default function BatchManager({ items, batches, ledger, addBatch, updateB
 
   const itemMap   = Object.fromEntries(items.map(i => [i.id, i]));
   const ledgerMap = Object.fromEntries(localLedger.map(l => [l.id, l]));
-  const selectedItem = itemMap[form.itemId];
 
   const openAdd  = () => {
     setForm(EMPTY);
@@ -109,15 +109,6 @@ export default function BatchManager({ items, batches, ledger, addBatch, updateB
 
   const list = batches.filter(b => filter === "all" || b.itemId === filter);
 
-  // Live secondary-unit conversion preview
-  const secondaryPreview = (() => {
-    if (!selectedItem?.hasSecondaryUnit || !selectedItem?.conversionRate || !form.quantity) return null;
-    const qty = Number(form.quantity);
-    if (isNaN(qty)) return null;
-    const converted = (qty * Number(selectedItem.conversionRate)).toFixed(2).replace(/\.?0+$/, "");
-    return `${qty} ${selectedItem.unit} = ${converted} ${selectedItem.secondaryUnit}`;
-  })();
-
   return (
     <div className="space-y-6">
       <Toast toast={toast}/>
@@ -130,6 +121,10 @@ export default function BatchManager({ items, batches, ledger, addBatch, updateB
           <p className="text-slate-500 text-sm mt-0.5">{batches.length} batches tracked</p>
         </div>
         <PrimaryBtn onClick={openAdd}><Plus size={15}/>Add Batch</PrimaryBtn>
+      </div>
+
+      <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5 text-xs text-blue-700">
+        💡 <strong>Opening Qty</strong> is what you enter here and never changes. Current stock is calculated live from Entry Sheet transactions — view it in the <strong>Current</strong> column or the <strong>Batch Ledger</strong> report.
       </div>
 
       <div className="flex items-center gap-3">
@@ -149,7 +144,7 @@ export default function BatchManager({ items, batches, ledger, addBatch, updateB
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold text-xs uppercase tracking-wide">
-                    {["#","Item","Batch No.","Expiry","Status","Qty","Purchase ₹","MRP ₹","Supplier","Actions"].map(h=>(
+                    {["#","Item","Batch No.","Expiry","Status","Opening Qty","Current","Purchase ₹","MRP ₹","Supplier","Actions"].map(h=>(
                       <th key={h} className="text-left px-5 py-4">{h}</th>
                     ))}
                   </tr>
@@ -158,9 +153,8 @@ export default function BatchManager({ items, batches, ledger, addBatch, updateB
                   {list.map((b, idx) => {
                     const item     = itemMap[b.itemId];
                     const supplier = ledgerMap[b.supplierId];
-                    const secQty   = item?.hasSecondaryUnit && item?.conversionRate
-                      ? (b.quantity * Number(item.conversionRate)).toFixed(2).replace(/\.?0+$/, "")
-                      : null;
+                    const closing  = computeClosingQty(b, batchTxnMap || {});
+                    const changed  = closing !== Number(b.quantity);
                     return (
                       <tr key={b.id} className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
                         <td className="px-5 py-4 text-slate-400 text-xs">{idx+1}</td>
@@ -168,14 +162,12 @@ export default function BatchManager({ items, batches, ledger, addBatch, updateB
                         <td className="px-5 py-4 font-mono text-teal-700 text-xs">{b.batchNo}</td>
                         <td className="px-5 py-4 text-slate-600 whitespace-nowrap">{b.expiryDate ? format(b.expiryDate,"dd MMM yyyy") : "—"}</td>
                         <td className="px-5 py-4"><ExpiryBadge date={b.expiryDate}/></td>
+                        <td className="px-5 py-4 text-slate-500">
+                          {b.quantity} <span className="text-xs">{item?.unit}</span>
+                        </td>
                         <td className="px-5 py-4">
-                          <span className="font-bold text-slate-800">{b.quantity}</span>
+                          <span className={`font-bold ${changed ? "text-teal-700" : "text-slate-800"}`}>{closing}</span>
                           <span className="text-slate-400 text-xs ml-1">{item?.unit}</span>
-                          {secQty && (
-                            <span className="text-teal-600 text-xs ml-1.5 bg-teal-50 px-1.5 py-0.5 rounded-md">
-                              ({secQty} {item.secondaryUnit})
-                            </span>
-                          )}
                         </td>
                         <td className="px-5 py-4 text-slate-600">{b.purchasePrice!=null?`₹${b.purchasePrice}`:"—"}</td>
                         <td className="px-5 py-4 text-slate-600">{b.mrp!=null?`₹${b.mrp}`:"—"}</td>
@@ -214,7 +206,7 @@ export default function BatchManager({ items, batches, ledger, addBatch, updateB
             </Field>
           </div>
           <div className="grid grid-cols-3 gap-4">
-            <Field label={`Quantity * (${selectedItem?.unit || "unit"})`}>
+            <Field label="Opening Qty *">
               <input required type="number" min="0" value={form.quantity}
                 onChange={e=>setForm({...form,quantity:e.target.value})} placeholder="0" className={inputCls}/>
             </Field>
@@ -227,19 +219,15 @@ export default function BatchManager({ items, batches, ledger, addBatch, updateB
                 onChange={e=>setForm({...form,mrp:e.target.value})} placeholder="0.00" className={inputCls}/>
             </Field>
           </div>
-
-          {/* Live secondary unit conversion preview */}
-          {secondaryPreview && (
-            <div className="px-4 py-2.5 bg-teal-50 border border-teal-100 rounded-xl text-sm text-teal-700 font-medium">
-              ⚖️ {secondaryPreview}
-            </div>
-          )}
+          <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg -mt-1">
+            ⚠ Opening Qty is frozen after creation. To adjust stock later, use the Entry Sheet (Purchase/Sale/Damage etc.) — it never changes this number directly.
+          </p>
 
           <Field label="Supplier">
             <select value={form.supplierId || ""}
-              onChange={e=>handleSupplierChange(e.target.value)} className={inputCls}>
+              onChange={e => handleSupplierChange(e.target.value)} className={inputCls}>
               <option value="">— Select Supplier —</option>
-              {localLedger.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
+              {localLedger.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
               <option value="__other__">➕ Other (Add New Supplier)</option>
             </select>
           </Field>
@@ -250,7 +238,7 @@ export default function BatchManager({ items, batches, ledger, addBatch, updateB
                 <label className="block text-xs font-semibold text-teal-700 mb-1.5 uppercase tracking-wide">New Supplier Name</label>
                 <input value={otherName} onChange={e=>setOtherName(e.target.value)}
                   placeholder="Enter supplier name…" className={inputCls}
-                  onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); handleSaveOther(); }}}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSaveOther(); }}}
                   autoFocus/>
               </div>
               <button type="button" onClick={handleSaveOther} disabled={savingOther || !otherName.trim()}

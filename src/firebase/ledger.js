@@ -1,6 +1,6 @@
 import {
   collection, addDoc, updateDoc, deleteDoc,
-  doc, getDocs, query, orderBy, serverTimestamp,
+  doc, onSnapshot, query, orderBy, serverTimestamp,
 } from "firebase/firestore";
 import { db } from "./config";
 
@@ -10,7 +10,9 @@ export const addLedger    = (data)     => addDoc(collection(db, COL), { ...data,
 export const updateLedger = (id, data) => updateDoc(doc(db, COL, id), { ...data, updatedAt: serverTimestamp() });
 export const deleteLedger = (id)       => deleteDoc(doc(db, COL, id));
 
-export const getLedger = async () => {
-  const snap = await getDocs(query(collection(db, COL), orderBy("createdAt", "desc")));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+export const listenLedger = (callback) => {
+  const q = query(collection(db, COL), orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  });
 };

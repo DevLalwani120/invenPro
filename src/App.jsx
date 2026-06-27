@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  LayoutDashboard, Package, Layers, BookUser, FileText,
+  LayoutDashboard, Package, Layers, BookUser, FileText, BookOpen, ClipboardList,
   Menu, X, RefreshCw, LogOut, ShieldCheck,
 } from "lucide-react";
 import Dashboard    from "./pages/Dashboard";
@@ -8,6 +8,8 @@ import ItemMaster   from "./pages/ItemMaster";
 import BatchManager from "./pages/BatchManager";
 import LedgerMaster from "./pages/LedgerMaster";
 import EntrySheet   from "./pages/EntrySheet";
+import BatchLedger  from "./pages/BatchLedger";
+import StockReport  from "./pages/StockReport";
 import AdminPanel   from "./pages/AdminPanel";
 import Auth         from "./pages/Auth";
 import AlertBell    from "./components/AlertBell";
@@ -19,29 +21,24 @@ import { logout }        from "./firebase/auth";
 import { ADMIN_EMAIL }   from "./firebase/config";
 
 const NAV = [
-  { id:"dashboard", label:"Dashboard",     icon:LayoutDashboard },
-  { id:"entry",     label:"Entry Sheet",   icon:FileText         },
-  { id:"items",     label:"Item Master",   icon:Package          },
-  { id:"batches",   label:"Batch Manager", icon:Layers           },
-  { id:"ledger",    label:"Ledger Master", icon:BookUser         },
+  { id:"dashboard",   label:"Dashboard",     icon:LayoutDashboard },
+  { id:"entry",       label:"Entry Sheet",   icon:FileText         },
+  { id:"items",       label:"Item Master",   icon:Package          },
+  { id:"batches",     label:"Batch Manager", icon:Layers           },
+  { id:"ledger",      label:"Ledger Master", icon:BookUser         },
+  { id:"stockreport", label:"Stock Report",  icon:ClipboardList    },
+  { id:"batchledger", label:"Batch Ledger",  icon:BookOpen         },
 ];
 
 export default function App() {
   const [page,     setPage]     = useState("dashboard");
   const [sideOpen, setSideOpen] = useState(false);
+  const [highlightEntryId, setHighlightEntryId] = useState(null);
 
   const { user, loading: authLoading } = useAuth();
   const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
-  const {
-    items, batches, ledger, stockMap,
-    lowStockItems, expiringBatches, expiredBatches,
-    totalAlerts, loading, error, refetch,
-    addItem, updateItem, deleteItem,
-    addBatch, updateBatch, deleteBatch,
-    addLedger, updateLedger, deleteLedger,
-  } = useInventory();
-
+  // Admin data first — events are needed by useInventory for Add/Less calc
   const {
     categories, units, events, users, loginLogs,
     loading: adminLoading, error: adminError, refetch: adminRefetch,
@@ -51,12 +48,39 @@ export default function App() {
     updateUser,
   } = useAdmin();
 
+  // Live, real-time inventory data — no manual refresh needed anywhere
   const {
-    entries, loading: entriesLoading, error: entriesError,
-    addEntry, updateEntry, deleteEntry,
-  } = useEntries();
+    items, batches, ledger, entries, stockMap, batchTxnMap,
+    loading, error,
+    expiredBatches, expiringBatches, lowStockItems, totalAlerts,
+    addItem, updateItem, deleteItem,
+    addBatch, updateBatch, deleteBatch,
+    addLedger, updateLedger, deleteLedger,
+  } = useInventory(events);
+
+  const { addEntry, updateEntry, deleteEntry } = useEntries();
 
   const navigate = (id) => { setPage(id); setSideOpen(false); };
+
+  // Called from Stock Report when a transaction row is clicked.
+  // Switches to Entry Sheet and scrolls/highlights that row.
+  const handleViewTransaction = (entryId) => {
+    if (!entryId) return;
+    setHighlightEntryId(entryId);
+    setPage("entry");
+    setSideOpen(false);
+    // Wait for the page to render, then scroll to the row
+    setTimeout(() => {
+      const el = document.getElementById(`entry-row-${entryId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("ring-2", "ring-teal-400", "bg-teal-50/60");
+        setTimeout(() => {
+          el.classList.remove("ring-2", "ring-teal-400", "bg-teal-50/60");
+        }, 2500);
+      }
+    }, 150);
+  };
 
   const itemMap = Object.fromEntries(items.map(i => [i.id, i]));
   const enrichedLowStock = lowStockItems.map(item => ({
@@ -169,7 +193,12 @@ export default function App() {
             <h2 className="text-slate-800 font-bold text-lg" style={{fontFamily:"'Syne',sans-serif"}}>
               {page === "admin" ? "Admin Panel" : NAV.find(n=>n.id===page)?.label}
             </h2>
-            <p className="text-slate-400 text-xs mt-0.5">InvenPro · Inventory Management System</p>
+            <p className="text-slate-400 text-xs mt-0.5 flex items-center gap-1.5">
+              InvenPro · Inventory Management System
+              <span className="inline-flex items-center gap-1 text-emerald-500">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"/> Live
+              </span>
+            </p>
           </div>
 
           <AlertBell
@@ -179,12 +208,6 @@ export default function App() {
             itemMap={itemMap}
             onNavigate={navigate}
           />
-
-          <button onClick={refetch}
-            className="p-2.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
-            title="Refresh data">
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""}/>
-          </button>
         </header>
 
         <main className="flex-1 overflow-auto p-4 lg:p-8">
@@ -208,7 +231,7 @@ export default function App() {
 
           {!loading && page === "entry" && (
             <EntrySheet
-              items={items} batches={batches} stockMap={stockMap}
+              items={items} batches={batches} stockMap={stockMap} batchTxnMap={batchTxnMap}
               events={events} ledger={ledger}
               entries={entries}
               addEntry={addEntry} updateEntry={updateEntry} deleteEntry={deleteEntry}
@@ -221,13 +244,27 @@ export default function App() {
               categories={categories} units={units}/>
           )}
           {!loading && page === "batches" && (
-            <BatchManager items={items} batches={batches} ledger={ledger}
-              addBatch={addBatch} updateBatch={updateBatch} deleteBatch={deleteBatch}
-              addLedger={addLedger}/>
+            <BatchManager items={items} batches={batches} ledger={ledger} batchTxnMap={batchTxnMap}
+              addBatch={addBatch} updateBatch={updateBatch} deleteBatch={deleteBatch}/>
           )}
           {!loading && page === "ledger" && (
             <LedgerMaster ledger={ledger}
               addLedger={addLedger} updateLedger={updateLedger} deleteLedger={deleteLedger}/>
+          )}
+
+          {!loading && page === "stockreport" && (
+            <StockReport
+              items={items} batches={batches} entries={entries}
+              events={events} ledger={ledger} stockMap={stockMap} batchTxnMap={batchTxnMap}
+              onViewTransaction={handleViewTransaction}
+            />
+          )}
+
+          {!loading && page === "batchledger" && (
+            <BatchLedger
+              items={items} batches={batches}
+              events={events} ledger={ledger} batchTxnMap={batchTxnMap}
+            />
           )}
 
           {!loading && page === "admin" && isAdmin && (

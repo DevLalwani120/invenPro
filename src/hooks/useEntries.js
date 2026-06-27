@@ -1,33 +1,23 @@
-import { useState, useEffect, useCallback } from "react";
-import { getEntries, addEntry, updateEntry, deleteEntry } from "../firebase/entries";
+import { addEntry as addEntryFn, updateEntry as updateEntryFn, deleteEntry as deleteEntryFn } from "../firebase/entries";
 
+/**
+ * Entries are pure transaction logs now — no batch mutation happens here.
+ * Batch quantities are always computed live from the entries list
+ * (see firebase/stock.js). This hook just exposes simple CRUD;
+ * the live `entries` array itself comes from useInventory's onSnapshot listener.
+ */
 export function useEntries() {
-  const [entries, setEntries] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
-
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getEntries();
-      setEntries(data);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchAll(); }, [fetchAll]);
-
-  const wrap = (fn) => async (...args) => { await fn(...args); await fetchAll(); };
-
-  return {
-    entries, loading, error,
-    refetch:     fetchAll,
-    addEntry:    wrap(addEntry),
-    updateEntry: wrap((id, d) => updateEntry(id, d)),
-    deleteEntry: wrap(deleteEntry),
+  const addEntry = async (data) => {
+    await addEntryFn(data);
   };
+
+  const updateEntry = async (id, data) => {
+    await updateEntryFn(id, data);
+  };
+
+  const deleteEntry = async (id) => {
+    await deleteEntryFn(id);
+  };
+
+  return { addEntry, updateEntry, deleteEntry };
 }

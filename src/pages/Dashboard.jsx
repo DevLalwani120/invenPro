@@ -13,27 +13,6 @@ function StatCard({ icon, label, value, bg, iconColor }) {
   );
 }
 
-function formatStock(item, stock) {
-  if (item.hasSecondaryUnit && item.conversionRate > 0) {
-    const secondaryQty = (stock * Number(item.conversionRate)).toFixed(2).replace(/\.?0+$/, "");
-    return (
-      <>
-        <span className="font-bold">{stock}</span>
-        <span className="text-slate-400 text-xs ml-1">{item.unit}</span>
-        <span className="text-teal-600 text-xs ml-1.5 bg-teal-50 px-1.5 py-0.5 rounded-md">
-          ({secondaryQty} {item.secondaryUnit})
-        </span>
-      </>
-    );
-  }
-  return (
-    <>
-      <span className="font-bold">{stock}</span>
-      <span className="text-slate-400 text-xs ml-1">{item.unit}</span>
-    </>
-  );
-}
-
 export default function Dashboard({ items, batches, stockMap, lowStockItems, expiringBatches, expiredBatches }) {
   const itemMap = Object.fromEntries(items.map(i => [i.id, i]));
   const today   = new Date();
@@ -133,11 +112,11 @@ export default function Dashboard({ items, batches, stockMap, lowStockItems, exp
         </div>
       </div>
 
-      {/* Stock Overview */}
+      {/* Stock Overview — now driven by live computed stockMap, updates instantly */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-50 flex items-center justify-between">
           <h2 className="font-bold text-slate-800 text-base" style={{fontFamily:"'Syne',sans-serif"}}>Stock Overview</h2>
-          <span className="text-xs text-slate-400">{items.length} items</span>
+          <span className="text-xs text-slate-400">{items.length} items · live</span>
         </div>
         {items.length === 0 ? (
           <div className="flex flex-col items-center py-10 text-slate-400">
@@ -164,8 +143,9 @@ export default function Dashboard({ items, batches, stockMap, lowStockItems, exp
                       <td className="px-5 py-4">
                         <span className="px-2 py-0.5 rounded-lg text-xs font-medium bg-teal-50 text-teal-700">{item.category}</span>
                       </td>
-                      <td className={`px-5 py-4 ${isLow ? "text-red-500" : "text-slate-800"}`}>
-                        {formatStock(item, stock)}
+                      <td className="px-5 py-4">
+                        <span className={`font-bold ${isLow?"text-red-500":"text-slate-800"}`}>{stock}</span>
+                        <span className="text-slate-400 text-xs ml-1">{item.unit}</span>
                       </td>
                       <td className="px-5 py-4 text-slate-500">{item.minStockLevel ?? "—"}</td>
                       <td className="px-5 py-4">

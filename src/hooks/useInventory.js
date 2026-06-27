@@ -1,55 +1,86 @@
-import { useState, useEffect, useCallback } from "react";
-import { getItems, addItem, updateItem, deleteItem }       from "../firebase/items";
-import { getBatches, addBatch, updateBatch, deleteBatch }  from "../firebase/batches";
-import { getLedger, addLedger, updateLedger, deleteLedger } from "../firebase/ledger";
+import { useState, useEffect, useMemo } from "react";
+import { listenItems, addItem, updateItem, deleteItem } from "../firebase/items";
+import { listenBatches, addBatch, updateBatch, deleteBatch } from "../firebase/batches";
+import { listenLedger, addLedger, updateLedger, deleteLedger } from "../firebase/ledger";
+import { listenEntries } from "../firebase/entries";
+import { computeStockMap, buildBatchTransactionMap, computeClosingQty } from "../firebase/stock";
 
-export function useInventory() {
-  const [items,   setItems]   = useState([]);
-  const [batches, setBatches] = useState([]);
-  const [ledger,  setLedger]  = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
+const EXPIRY_WARN_DAYS = 15;
 
-  const fetchAll = useCallback(async () => {
-    try {
-      setLoading(true); setError(null);
-      const [i, b, l] = await Promise.all([getItems(), getBatches(), getLedger()]);
-      setItems(i); setBatches(b); setLedger(l);
-    } catch (e) { setError(e.message); }
-    finally     { setLoading(false); }
+export function useInventory(events) {
+  const [items,    setItems]    = useState([]);
+  const [batches,  setBatches]  = useState([]);
+  const [ledger,   setLedger]   = useState([]);
+  const [entries,  setEntries]  = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState(null);
+
+  // ── Live listeners — fire immediately, then on every change ───
+  useEffect(() => {
+    let loadedCount = 0;
+    const markLoaded = () => {
+      loadedCount++;
+      if (loadedCount >= 4) setLoading(false);
+    };
+
+    const unsubItems = listenItems((data) => { setItems(data); markLoaded(); });
+    const unsubBatches = listenBatches((data) => { setBatches(data); markLoaded(); });
+    const unsubLedger = listenLedger((data) => { setLedger(data); markLoaded(); });
+    const unsubEntries = listenEntries((data) => { setEntries(data); markLoaded(); });
+
+    return () => {
+      unsubItems();
+      unsubBatches();
+      unsubLedger();
+      unsubEntries();
+    };
   }, []);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  const eventMap = useMemo(
+    () => Object.fromEntries((events || []).map(e => [e.id, e])),
+    [events]
+  );
 
+  // ── Computed stock (live, derived from entries — never stored back) ──
+  const batchTxnMap = useMemo(
+    () => buildBatchTransactionMap(entries, eventMap),
+    [entries, eventMap]
+  );
+
+  const stockMap = useMemo(
+    () => computeStockMap(items, batches, batchTxnMap),
+    [items, batches, batchTxnMap]
+  );
+
+  // ── Alerts (use live computed closing qty, not frozen opening qty) ──
   const now  = new Date();
-  const warn = new Date(now.getTime() + 15 * 864e5);
+  const warn = new Date(now.getTime() + EXPIRY_WARN_DAYS * 864e5);
 
-  const stockMap = batches.reduce((acc, b) => {
-    acc[b.itemId] = (acc[b.itemId] || 0) + (b.quantity || 0);
-    return acc;
-  }, {});
+  const closingQtyMap = useMemo(() => {
+    const map = {};
+    batches.forEach((b) => {
+      map[b.id] = computeClosingQty(b, batchTxnMap);
+    });
+    return map;
+  }, [batches, batchTxnMap]);
 
-  const expiredBatches  = batches.filter((b) => b.expiryDate && b.expiryDate < now  && b.quantity > 0);
-  const expiringBatches = batches.filter((b) => b.expiryDate && b.expiryDate >= now && b.expiryDate <= warn && b.quantity > 0);
+  const expiredBatches  = batches.filter((b) =>
+    b.expiryDate && b.expiryDate < now && (closingQtyMap[b.id] ?? 0) > 0
+  );
+  const expiringBatches = batches.filter((b) =>
+    b.expiryDate && b.expiryDate >= now && b.expiryDate <= warn && (closingQtyMap[b.id] ?? 0) > 0
+  );
   const lowStockItems   = items.filter((item) =>
     item.minStockLevel != null && (stockMap[item.id] ?? 0) <= Number(item.minStockLevel)
   );
   const totalAlerts = expiredBatches.length + expiringBatches.length + lowStockItems.length;
 
-  const wrap = (fn) => async (...args) => { await fn(...args); fetchAll(); };
-
   return {
-    items, batches, ledger, stockMap, loading, error,
+    items, batches, ledger, entries, stockMap, batchTxnMap,
+    loading, error,
     expiredBatches, expiringBatches, lowStockItems, totalAlerts,
-    refetch:       fetchAll,
-    addItem:       wrap(addItem),
-    updateItem:    wrap((id, d) => updateItem(id, d)),
-    deleteItem:    wrap(deleteItem),
-    addBatch:      wrap(addBatch),
-    updateBatch:   wrap((id, d) => updateBatch(id, d)),
-    deleteBatch:   wrap(deleteBatch),
-    addLedger:     wrap(addLedger),
-    updateLedger:  wrap((id, d) => updateLedger(id, d)),
-    deleteLedger:  wrap(deleteLedger),
+    addItem, updateItem, deleteItem,
+    addBatch, updateBatch, deleteBatch,
+    addLedger, updateLedger, deleteLedger,
   };
 }
