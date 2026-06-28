@@ -7,7 +7,10 @@ import { addLedger as addLedgerFn } from "../firebase/ledger";
 import { computeClosingQty } from "../firebase/stock";
 
 const EMPTY_ROW = { itemId: "", batchId: "", qty: "", rate: "", amount: "" };
-const EMPTY_HEADER = { date: format(new Date(), "yyyy-MM-dd"), eventId: "", docNo: "", ledgerId: "" };
+const EMPTY_HEADER = {
+  date: format(new Date(), "yyyy-MM-dd"), eventId: "", docNo: "", ledgerId: "",
+  ledgerOtherName: "", ledgerOtherMobile: "", ledgerOtherAddress: "",
+};
 const EMPTY_NEW_BATCH = { batchNo: "", expiryDate: "" };
 
 const roundValue = (val, mode) => {
@@ -69,6 +72,9 @@ export default function EntrySheet({ items, batches, stockMap, batchTxnMap, even
     setHeader({
       date: entry.date ? format(entry.date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
       eventId: entry.eventId || "", docNo: entry.docNo || "", ledgerId: entry.ledgerId || "",
+      ledgerOtherName: entry.ledgerOtherName || "",
+      ledgerOtherMobile: entry.ledgerOtherMobile || "",
+      ledgerOtherAddress: entry.ledgerOtherAddress || "",
     });
     setRows((entry.rows || []).map(r => ({
       itemId: r.itemId || "", batchId: r.batchId || "",
@@ -185,11 +191,11 @@ export default function EntrySheet({ items, batches, stockMap, batchTxnMap, even
   const handleLedgerChange = (val) => {
     if (val === "__other__") {
       setShowNewLedger(true);
-      setHeader(h => ({ ...h, ledgerId: "" }));
+      setHeader(h => ({ ...h, ledgerId: "", ledgerOtherName: "", ledgerOtherMobile: "", ledgerOtherAddress: "" }));
     } else {
       setShowNewLedger(false);
       setNewLedgerName("");
-      setHeader(h => ({ ...h, ledgerId: val }));
+      setHeader(h => ({ ...h, ledgerId: val, ledgerOtherName: "", ledgerOtherMobile: "", ledgerOtherAddress: "" }));
     }
   };
 
@@ -216,6 +222,13 @@ export default function EntrySheet({ items, batches, stockMap, batchTxnMap, even
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!header.eventId) { showToast("Select an Event", "error"); return; }
+
+    const selectedLedgerEntry = ledgerMap[header.ledgerId];
+    if (selectedLedgerEntry?.type === "Other" && !header.ledgerOtherName.trim()) {
+      showToast(`Enter a name for this ${selectedLedgerEntry.name} transaction`, "error");
+      return;
+    }
+
     const validRows = rows.filter(r => r.itemId && r.qty);
     if (validRows.length === 0) { showToast("Add at least one item row with Qty", "error"); return; }
 
@@ -322,7 +335,15 @@ export default function EntrySheet({ items, batches, stockMap, batchTxnMap, even
                           )}
                         </td>
                         <td className="px-5 py-4 font-mono text-xs text-slate-500">{entry.docNo || "—"}</td>
-                        <td className="px-5 py-4 text-slate-500">{party?.name ?? "—"}</td>
+                        <td className="px-5 py-4 text-slate-500">
+                          {party?.name ?? "—"}
+                          {entry.ledgerOtherName && (
+                            <span className="block text-xs text-purple-600 font-medium">
+                              {entry.ledgerOtherName}
+                              {entry.ledgerOtherMobile && <span className="text-slate-400"> · {entry.ledgerOtherMobile}</span>}
+                            </span>
+                          )}
+                        </td>
                         <td className="px-5 py-4">
                           <div className="space-y-1">
                             {(entry.rows || []).map((r, i) => {
@@ -409,6 +430,38 @@ export default function EntrySheet({ items, batches, stockMap, batchTxnMap, even
               </select>
             </Field>
           </div>
+
+          {/* Conditional fields — only when selected ledger's type is "Other" */}
+          {(() => {
+            const selectedLedgerEntry = ledgerMap[header.ledgerId];
+            if (selectedLedgerEntry?.type === "Other") {
+              return (
+                <div className="p-3 bg-purple-50 rounded-xl border border-purple-100 space-y-3">
+                  <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide">
+                    {selectedLedgerEntry.name} — Details for this transaction
+                  </p>
+                  <Field label="Name *">
+                    <input required value={header.ledgerOtherName}
+                      onChange={e=>setHeader({...header, ledgerOtherName: e.target.value})}
+                      placeholder="Enter name…" className={inputCls}/>
+                  </Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Mobile">
+                      <input value={header.ledgerOtherMobile}
+                        onChange={e=>setHeader({...header, ledgerOtherMobile: e.target.value})}
+                        placeholder="Mobile number (optional)" className={inputCls}/>
+                    </Field>
+                    <Field label="Address">
+                      <input value={header.ledgerOtherAddress}
+                        onChange={e=>setHeader({...header, ledgerOtherAddress: e.target.value})}
+                        placeholder="Address (optional)" className={inputCls}/>
+                    </Field>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
 
           {showNewLedger && (
             <div className="flex gap-2 items-end p-3 bg-teal-50 rounded-xl border border-teal-100">

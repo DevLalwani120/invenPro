@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Plus, Pencil, Trash2, BookUser } from "lucide-react";
 import { Toast, useToast, ConfirmModal, Modal, Field, inputCls, PrimaryBtn, SaveBtn, Empty } from "../components/ui";
 
-const TYPES = ["Supplier","Customer","Both"];
+const TYPES = ["Supplier", "Other"];
 const EMPTY = { name:"", type:"Supplier", phone:"", address:"", gstin:"" };
 
 export default function LedgerMaster({ ledger, addLedger, updateLedger, deleteLedger }) {
@@ -40,8 +40,7 @@ export default function LedgerMaster({ ledger, addLedger, updateLedger, deleteLe
   const typeBadge = (type) => {
     const styles = {
       Supplier: "bg-blue-50 text-blue-700",
-      Customer: "bg-purple-50 text-purple-700",
-      Both:     "bg-teal-50 text-teal-700",
+      Other:    "bg-purple-50 text-purple-700",
     };
     return <span className={`px-2.5 py-1 rounded-lg text-xs font-medium ${styles[type] || "bg-slate-50 text-slate-600"}`}>{type}</span>;
   };
@@ -55,9 +54,13 @@ export default function LedgerMaster({ ledger, addLedger, updateLedger, deleteLe
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800" style={{fontFamily:"'Syne',sans-serif"}}>Ledger Master</h1>
-          <p className="text-slate-500 text-sm mt-0.5">{ledger.length} parties — suppliers &amp; customers</p>
+          <p className="text-slate-500 text-sm mt-0.5">{ledger.length} parties — suppliers &amp; others</p>
         </div>
         <PrimaryBtn onClick={openAdd}><Plus size={15}/>Add Party</PrimaryBtn>
+      </div>
+
+      <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5 text-xs text-blue-700">
+        💡 <strong>"Other"</strong> type is for reusable categories (e.g. "Sewadar") — when selected in Entry Sheet, it will ask for a specific name each time, without needing a new ledger entry for every person.
       </div>
 
       <input value={search} onChange={e=>setSearch(e.target.value)}
@@ -66,7 +69,7 @@ export default function LedgerMaster({ ledger, addLedger, updateLedger, deleteLe
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         {filtered.length === 0
-          ? <Empty icon={BookUser} title="No parties found" sub="Add suppliers and customers using the button above"/>
+          ? <Empty icon={BookUser} title="No parties found" sub="Add suppliers or other categories using the button above"/>
           : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -104,13 +107,18 @@ export default function LedgerMaster({ ledger, addLedger, updateLedger, deleteLe
         <form onSubmit={handleSubmit} className="space-y-4">
           <Field label="Name *">
             <input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}
-              placeholder="Supplier / Customer name" className={inputCls}/>
+              placeholder="e.g. ABC Traders or Sewadar" className={inputCls}/>
           </Field>
           <Field label="Type">
             <select value={form.type} onChange={e=>setForm({...form,type:e.target.value})} className={inputCls}>
               {TYPES.map(t=><option key={t}>{t}</option>)}
             </select>
           </Field>
+          {form.type === "Other" && (
+            <p className="text-xs text-purple-600 bg-purple-50 px-3 py-2 rounded-lg">
+              ℹ️ When this is selected in Entry Sheet, a "Name" field will appear asking for the specific person/detail for that transaction.
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <Field label="Phone">
               <input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}

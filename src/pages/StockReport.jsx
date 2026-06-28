@@ -165,7 +165,15 @@ export default function StockReport({ items, batches, entries, events, ledger, s
                           </td>
                           <td className="px-5 py-3 font-mono text-xs text-teal-700">{r.batch?.batchNo ?? "—"}</td>
                           <td className="px-5 py-3 font-mono text-xs text-slate-500">{r.docNo || "—"}</td>
-                          <td className="px-5 py-3 text-slate-500">{party?.name ?? "—"}</td>
+                          <td className="px-5 py-3 text-slate-500">
+                            {party?.name ?? "—"}
+                            {r.entry?.ledgerOtherName && (
+                              <span className="block text-xs text-purple-600 font-medium">
+                                {r.entry.ledgerOtherName}
+                                {r.entry.ledgerOtherMobile && <span className="text-slate-400"> · {r.entry.ledgerOtherMobile}</span>}
+                              </span>
+                            )}
+                          </td>
                           <td className={`px-5 py-3 font-semibold ${isAdd ? "text-emerald-600" : "text-red-500"}`}>
                             {isAdd ? "+" : "−"}{r.qty}
                           </td>

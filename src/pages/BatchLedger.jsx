@@ -128,7 +128,15 @@ export default function BatchLedger({ items, batches, events, ledger, batchTxnMa
                         )}
                       </td>
                       <td className="px-5 py-4 font-mono text-xs text-slate-500">{row.docNo || "—"}</td>
-                      <td className="px-5 py-4 text-slate-500">{party?.name ?? "—"}</td>
+                      <td className="px-5 py-4 text-slate-500">
+                        {party?.name ?? "—"}
+                        {row.ledgerOtherName && (
+                          <span className="block text-xs text-purple-600 font-medium">
+                            {row.ledgerOtherName}
+                            {row.ledgerOtherMobile && <span className="text-slate-400"> · {row.ledgerOtherMobile}</span>}
+                          </span>
+                        )}
+                      </td>
                       <td className={`px-5 py-4 font-semibold ${isAdd ? "text-emerald-600" : "text-red-500"}`}>
                         {isAdd ? "+" : "−"}{row.qty}
                       </td>

@@ -1,10 +1,11 @@
 import { useState } from "react";
 import {
-  LayoutDashboard, Package, Layers, BookUser, FileText, BookOpen, ClipboardList,
+  LayoutDashboard, Package, Layers, BookUser, FileText, BookOpen, ClipboardList, FileSpreadsheet,
   Menu, X, RefreshCw, LogOut, ShieldCheck,
 } from "lucide-react";
 import Dashboard    from "./pages/Dashboard";
 import ItemMaster   from "./pages/ItemMaster";
+import ItemImport   from "./pages/ItemImport";
 import BatchManager from "./pages/BatchManager";
 import LedgerMaster from "./pages/LedgerMaster";
 import EntrySheet   from "./pages/EntrySheet";
@@ -24,6 +25,7 @@ const NAV = [
   { id:"dashboard",   label:"Dashboard",     icon:LayoutDashboard },
   { id:"entry",       label:"Entry Sheet",   icon:FileText         },
   { id:"items",       label:"Item Master",   icon:Package          },
+  { id:"itemimport",  label:"Import Items",  icon:FileSpreadsheet  },
   { id:"batches",     label:"Batch Manager", icon:Layers           },
   { id:"ledger",      label:"Ledger Master", icon:BookUser         },
   { id:"stockreport", label:"Stock Report",  icon:ClipboardList    },
@@ -242,6 +244,9 @@ export default function App() {
             <ItemMaster items={items} stockMap={stockMap}
               addItem={addItem} updateItem={updateItem} deleteItem={deleteItem}
               categories={categories} units={units}/>
+          )}
+          {!loading && page === "itemimport" && (
+            <ItemImport items={items} categories={categories} units={units} addItem={addItem}/>
           )}
           {!loading && page === "batches" && (
             <BatchManager items={items} batches={batches} ledger={ledger} batchTxnMap={batchTxnMap}

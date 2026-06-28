@@ -24,6 +24,9 @@ export const addEntry = (data) =>
     eventId:  data.eventId,
     docNo:    data.docNo || "",
     ledgerId: data.ledgerId || "",
+    ledgerOtherName:    data.ledgerOtherName    || "",
+    ledgerOtherMobile:  data.ledgerOtherMobile  || "",
+    ledgerOtherAddress: data.ledgerOtherAddress || "",
     rows:     data.rows,
     createdAt: serverTimestamp(),
   });
@@ -34,6 +37,9 @@ export const updateEntry = (id, data) =>
     eventId:  data.eventId,
     docNo:    data.docNo || "",
     ledgerId: data.ledgerId || "",
+    ledgerOtherName:    data.ledgerOtherName    || "",
+    ledgerOtherMobile:  data.ledgerOtherMobile  || "",
+    ledgerOtherAddress: data.ledgerOtherAddress || "",
     rows:     data.rows,
     updatedAt: serverTimestamp(),
   });
