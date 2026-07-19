@@ -193,15 +193,6 @@ export default function Auth() {
               </p>
             )}
 
-            {/* Tiny link for admin to create the first account */}
-            {mode === "login" && (
-              <p className="text-center mt-3">
-                <button onClick={()=>{ setMode("signup"); reset(); }}
-                  className="text-xs text-slate-300 hover:text-slate-400 transition-colors">
-                  Create Account - Sign Up
-                </button>
-              </p>
-            )}
           </div>
         </div>
       </div>
