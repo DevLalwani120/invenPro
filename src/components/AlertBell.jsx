@@ -8,6 +8,8 @@ export default function AlertBell({ expiringBatches, expiredBatches, lowStockIte
   const total           = expiringBatches.length + expiredBatches.length + lowStockItems.length;
 
   // Close on outside click
+
+  
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", handler);
