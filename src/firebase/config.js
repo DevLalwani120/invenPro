@@ -22,3 +22,4 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 // ✅ SET YOUR ADMIN EMAIL HERE — only this email sees Admin Panel
 export const ADMIN_EMAIL = "devlalwani120@gmail.com";
+export const FIREBASE_API_KEY = firebaseConfig.apiKey;

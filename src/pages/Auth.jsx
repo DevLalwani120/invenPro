@@ -1,209 +1,134 @@
 import { useState } from "react";
-import { Package, Eye, EyeOff, Mail, Lock, User, ArrowLeft } from "lucide-react";
-import { login, signup, forgotPassword } from "../firebase/auth";
-import { ADMIN_EMAIL } from "../firebase/config";
+import { Package, Eye, EyeOff } from "lucide-react";
+import { login, forgotPassword } from "../firebase/auth";
 
 export default function Auth() {
-  const [mode,     setMode]     = useState("login"); // login | signup | forgot
-  const [name,     setName]     = useState("");
+  const [mode,     setMode]     = useState("login");
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
-  const [showPass, setShowPass] = useState(false);
+  const [showPwd,  setShowPwd]  = useState(false);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState("");
   const [success,  setSuccess]  = useState("");
 
-  const reset = () => { setError(""); setSuccess(""); };
-
-  const friendlyError = (code) => {
-    switch (code) {
-      case "auth/user-not-found":       return "No account found with this email.";
-      case "auth/wrong-password":       return "Incorrect password. Try again.";
-      case "auth/email-already-in-use": return "This email is already registered. Please login.";
-      case "auth/weak-password":        return "Password must be at least 6 characters.";
-      case "auth/invalid-email":        return "Please enter a valid email address.";
-      case "auth/too-many-requests":    return "Too many attempts. Please try again later.";
-      case "auth/invalid-credential":   return "Incorrect email or password.";
-      default:                          return "Something went wrong. Please try again.";
-    }
-  };
-
-  const handleSubmit = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    reset();
+    setError(""); setSuccess("");
     setLoading(true);
     try {
-      if (mode === "login") {
-        await login(email, password);
-
-      } else if (mode === "signup") {
-        await signup(email, password, name);
-
-      } else if (mode === "forgot") {
-        await forgotPassword(email);
-        setSuccess("Password reset email sent! Check your inbox.");
-        setEmail("");
-      }
+      await login(email, password);
     } catch (err) {
-      setError(friendlyError(err.code));
-    } finally {
-      setLoading(false);
-    }
+      setError(
+        err.code === "auth/invalid-credential" ||
+        err.code === "auth/user-not-found"     ||
+        err.code === "auth/wrong-password"
+          ? "Invalid email or password"
+          : err.code === "auth/too-many-requests"
+          ? "Too many attempts. Please try again later."
+          : err.message
+      );
+    } finally { setLoading(false); }
   };
 
-  const inputCls = "w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white transition-colors";
+  const handleForgot = async (e) => {
+    e.preventDefault();
+    setError(""); setSuccess("");
+    setLoading(true);
+    try {
+      await forgotPassword(email);
+      setSuccess("Password reset email sent! Check your inbox.");
+    } catch {
+      setError("Could not send reset email. Check the address and try again.");
+    } finally { setLoading(false); }
+  };
+
+  const inputCls = "w-full px-4 py-3 rounded-xl bg-white/10 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-400 transition-all text-sm";
 
   return (
-    <div className="min-h-screen flex" style={{fontFamily:"'DM Sans',sans-serif"}}>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-teal-900 p-4">
+      <div className="w-full max-w-md">
 
-      {/* Left panel — branding */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12"
-        style={{background:"linear-gradient(160deg,#0f2027,#203a43,#0f766e)"}}>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-teal-400/20 flex items-center justify-center">
-            <Package size={20} className="text-teal-300"/>
+        {/* Logo */}
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-16 h-16 rounded-2xl bg-teal-500/20 border border-teal-400/30 flex items-center justify-center mb-4 shadow-xl">
+            <Package size={32} className="text-teal-300"/>
           </div>
-          <span className="text-white font-bold text-2xl" style={{fontFamily:"'Syne',sans-serif"}}>InvenPro</span>
+          <h1 className="text-3xl font-bold text-white" style={{fontFamily:"'Syne',sans-serif"}}>InvenPro</h1>
+          <p className="text-slate-400 text-sm mt-1">Inventory Management System</p>
         </div>
-        <div>
-          <h1 className="text-4xl font-bold text-white leading-tight mb-4" style={{fontFamily:"'Syne',sans-serif"}}>
-            Manage your inventory<br/>with confidence.
-          </h1>
-          <p className="text-teal-200/70 text-base leading-relaxed">
-            Track items, batches, expiry dates and get automatic email alerts every morning.
-          </p>
-          <div className="mt-10 grid grid-cols-3 gap-4">
-            {[
-              { label:"Items Tracked",  value:"∞" },
-              { label:"Daily Alerts",   value:"9 AM" },
-              { label:"Always Free",    value:"₹0" },
-            ].map(({ label, value }) => (
-              <div key={label} className="bg-white/8 rounded-2xl p-4 border border-white/10">
-                <p className="text-white font-bold text-2xl">{value}</p>
-                <p className="text-teal-300/70 text-xs mt-1">{label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-        <p className="text-white/30 text-xs">© 2025 InvenPro. Built with Firebase + React.</p>
-      </div>
 
-      {/* Right panel — form */}
-      <div className="flex-1 flex items-center justify-center p-6 bg-slate-50">
-        <div className="w-full max-w-md">
+        <div className="bg-white/5 backdrop-blur-sm rounded-3xl border border-white/10 shadow-2xl p-8">
 
-          <div className="lg:hidden flex items-center gap-2 mb-8">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{background:"linear-gradient(135deg,#0f766e,#0d9488)"}}>
-              <Package size={16} className="text-white"/>
-            </div>
-            <span className="font-bold text-xl text-slate-800" style={{fontFamily:"'Syne',sans-serif"}}>InvenPro</span>
-          </div>
+          {mode === "login" && (
+            <>
+              <h2 className="text-white font-bold text-xl mb-6" style={{fontFamily:"'Syne',sans-serif"}}>Sign In</h2>
+              {error   && <div className="mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm">{error}</div>}
+              {success && <div className="mb-4 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm">{success}</div>}
 
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 p-8">
-
-            {mode === "forgot" && (
-              <button onClick={()=>{ setMode("login"); reset(); }}
-                className="flex items-center gap-1.5 text-slate-500 text-sm hover:text-slate-700 mb-5 transition-colors">
-                <ArrowLeft size={15}/> Back to login
-              </button>
-            )}
-
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-slate-800" style={{fontFamily:"'Syne',sans-serif"}}>
-                {mode === "login"  ? "Welcome back"      :
-                 mode === "signup" ? "Create account"    :
-                                    "Reset password"}
-              </h2>
-              <p className="text-slate-500 text-sm mt-1">
-                {mode === "login"  ? "Sign in to your InvenPro account"        :
-                 mode === "signup" ? "Set up your inventory management system" :
-                                    "We'll send a reset link to your email"}
-              </p>
-            </div>
-
-            {error && (
-              <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
-                {error}
-              </div>
-            )}
-            {success && (
-              <div className="mb-4 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-sm">
-                {success}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-
-              {mode === "signup" && (
-                <div className="relative">
-                  <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
-                  <input required value={name} onChange={e=>setName(e.target.value)}
-                    placeholder="Full name" className={inputCls}/>
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <label className="block text-slate-300 text-xs font-semibold mb-1.5 uppercase tracking-wide">Email</label>
+                  <input required type="email" value={email} onChange={e=>setEmail(e.target.value)}
+                    placeholder="your@email.com" autoComplete="email" className={inputCls}/>
                 </div>
-              )}
-
-              <div className="relative">
-                <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
-                <input required type="email" value={email} onChange={e=>setEmail(e.target.value)}
-                  placeholder="Email address" className={inputCls}/>
-              </div>
-
-              {mode !== "forgot" && (
-                <div className="relative">
-                  <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
-                  <input required type={showPass?"text":"password"}
-                    value={password} onChange={e=>setPassword(e.target.value)}
-                    placeholder={mode==="signup" ? "Create password (min 6 chars)" : "Password"}
-                    className={`${inputCls} pr-10`}/>
-                  <button type="button" onClick={()=>setShowPass(s=>!s)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                    {showPass ? <EyeOff size={16}/> : <Eye size={16}/>}
-                  </button>
+                <div>
+                  <label className="block text-slate-300 text-xs font-semibold mb-1.5 uppercase tracking-wide">Password</label>
+                  <div className="relative">
+                    <input required type={showPwd?"text":"password"} value={password}
+                      onChange={e=>setPassword(e.target.value)}
+                      placeholder="••••••••" autoComplete="current-password"
+                      className={`${inputCls} pr-12`}/>
+                    <button type="button" onClick={()=>setShowPwd(v=>!v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors">
+                      {showPwd ? <EyeOff size={18}/> : <Eye size={18}/>}
+                    </button>
+                  </div>
                 </div>
-              )}
+                <button type="submit" disabled={loading}
+                  className="w-full py-3 rounded-xl font-semibold text-sm text-white transition-all disabled:opacity-60 hover:shadow-lg hover:shadow-teal-500/20"
+                  style={{background:"linear-gradient(135deg,#0f766e,#0d9488)"}}>
+                  {loading ? "Signing in…" : "Sign In"}
+                </button>
+              </form>
 
-              <button type="submit" disabled={loading}
-                className="w-full py-3 rounded-xl text-white text-sm font-semibold shadow-lg
-                  hover:shadow-xl transition-all hover:-translate-y-0.5
-                  disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
-                style={{background:"linear-gradient(135deg,#0f766e,#0d9488)"}}>
-                {loading ? "Please wait…" :
-                 mode === "login"  ? "Sign In"         :
-                 mode === "signup" ? "Create Account"  :
-                                    "Send Reset Email"}
+              <button onClick={()=>{ setMode("forgot"); setError(""); setSuccess(""); }}
+                className="w-full text-center mt-4 text-slate-400 hover:text-teal-300 text-sm transition-colors">
+                Forgot password?
               </button>
-            </form>
+            </>
+          )}
 
-            {mode === "login" && (
-              <p className="text-center text-sm text-slate-500 mt-5">
-                Trouble signing in?{" "}
-                <button onClick={()=>{ setMode("forgot"); reset(); }}
-                  className="text-teal-600 font-semibold hover:text-teal-700 transition-colors">
-                  Reset password
-                </button>
-              </p>
-            )}
-            {mode === "forgot" && (
-              <p className="text-center text-sm text-slate-500 mt-5">
-                Remember it?{" "}
-                <button onClick={()=>{ setMode("login"); reset(); }}
-                  className="text-teal-600 font-semibold hover:text-teal-700 transition-colors">
-                  Back to login
-                </button>
-              </p>
-            )}
+          {mode === "forgot" && (
+            <>
+              <h2 className="text-white font-bold text-xl mb-2" style={{fontFamily:"'Syne',sans-serif"}}>Reset Password</h2>
+              <p className="text-slate-400 text-sm mb-6">Enter your email and we'll send a reset link.</p>
+              {error   && <div className="mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm">{error}</div>}
+              {success && <div className="mb-4 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm">{success}</div>}
 
-            {/* Tiny link for admin to create the first account */}
-            {mode === "login" && (
-              <p className="text-center mt-3">
-                <button onClick={()=>{ setMode("signup"); reset(); }}
-                  className="text-xs text-slate-300 hover:text-slate-400 transition-colors">
-                  Create Account - Sign Up
+              <form onSubmit={handleForgot} className="space-y-4">
+                <div>
+                  <label className="block text-slate-300 text-xs font-semibold mb-1.5 uppercase tracking-wide">Email</label>
+                  <input required type="email" value={email} onChange={e=>setEmail(e.target.value)}
+                    placeholder="your@email.com" className={inputCls}/>
+                </div>
+                <button type="submit" disabled={loading}
+                  className="w-full py-3 rounded-xl font-semibold text-sm text-white transition-all disabled:opacity-60"
+                  style={{background:"linear-gradient(135deg,#0f766e,#0d9488)"}}>
+                  {loading ? "Sending…" : "Send Reset Email"}
                 </button>
-              </p>
-            )}
-          </div>
+              </form>
+
+              <button onClick={()=>{ setMode("login"); setError(""); setSuccess(""); }}
+                className="w-full text-center mt-4 text-slate-400 hover:text-teal-300 text-sm transition-colors">
+                ← Back to Sign In
+              </button>
+            </>
+          )}
         </div>
+
+        <p className="text-center text-slate-600 text-xs mt-6">
+          Don't have an account? Contact your administrator.
+        </p>
       </div>
     </div>
   );
