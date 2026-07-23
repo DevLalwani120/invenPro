@@ -207,7 +207,7 @@ export default function BatchManager({ items, batches, ledger, batchTxnMap, addB
           </div>
           <div className="grid grid-cols-3 gap-4">
             <Field label="Opening Qty *">
-              <input required type="number" min="0" value={form.quantity}
+              <input required type="number" min="0" step="0.01" value={form.quantity}
                 onChange={e=>setForm({...form,quantity:e.target.value})} placeholder="0" className={inputCls}/>
             </Field>
             <Field label="Purchase ₹">
