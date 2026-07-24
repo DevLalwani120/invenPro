@@ -7,6 +7,7 @@ import Dashboard    from "./pages/Dashboard";
 import ItemMaster   from "./pages/ItemMaster";
 import ItemImport   from "./pages/ItemImport";
 import BatchManager from "./pages/BatchManager";
+import BatchImport  from "./pages/BatchImport";
 import LedgerMaster from "./pages/LedgerMaster";
 import EntrySheet   from "./pages/EntrySheet";
 import BatchLedger  from "./pages/BatchLedger";
@@ -27,6 +28,7 @@ const NAV = [
   { id:"items",       label:"Item Master",   icon:Package          },
   { id:"itemimport",  label:"Import Items",  icon:FileSpreadsheet  },
   { id:"batches",     label:"Batch Manager", icon:Layers           },
+  { id:"batchimport", label:"Import Batches",icon:FileSpreadsheet  },
   { id:"ledger",      label:"Ledger Master", icon:BookUser         },
   { id:"stockreport", label:"Stock Report",  icon:ClipboardList    },
   { id:"batchledger", label:"Batch Ledger",  icon:BookOpen         },
@@ -251,6 +253,9 @@ export default function App() {
           {!loading && page === "batches" && (
             <BatchManager items={items} batches={batches} ledger={ledger} batchTxnMap={batchTxnMap}
               addBatch={addBatch} updateBatch={updateBatch} deleteBatch={deleteBatch}/>
+          )}
+          {!loading && page === "batchimport" && (
+            <BatchImport items={items} batches={batches} ledger={ledger} addBatch={addBatch}/>
           )}
           {!loading && page === "ledger" && (
             <LedgerMaster ledger={ledger}

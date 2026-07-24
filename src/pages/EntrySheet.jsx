@@ -161,20 +161,25 @@ export default function EntrySheet({ items, batches, stockMap, batchTxnMap, even
       showToast("Batch No and Expiry Date are required", "error"); return;
     }
     if (!row.itemId) { showToast("Select an item first", "error"); return; }
-    if (!row.qty)    { showToast("Enter Qty for this row first — it becomes the batch's opening stock", "error"); return; }
+    if (!row.qty)    { showToast("Enter Qty for this row first — it will be recorded as this batch's first transaction", "error"); return; }
 
     setSavingBatch(true);
     try {
+      // Opening Qty is always 0 for batches created from the Entry Sheet —
+      // the row's Qty gets saved separately as an Add transaction against
+      // this batch, so setting Opening Qty = row.qty here would double-count
+      // stock (Current would show Opening + Transaction instead of just
+      // the transaction).
       const docRef = await addBatchFn({
         itemId: row.itemId,
         batchNo: newBatch.batchNo.trim(),
         expiryDate: newBatch.expiryDate,
-        quantity: row.qty,
+        quantity: 0,
         purchasePrice: "", mrp: "", supplierId: header.ledgerId || "",
       });
       const newEntry = {
         id: docRef.id, itemId: row.itemId, batchNo: newBatch.batchNo.trim(),
-        expiryDate: new Date(newBatch.expiryDate), quantity: Number(row.qty),
+        expiryDate: new Date(newBatch.expiryDate), quantity: 0,
       };
       setLocalBatches(prev => [newEntry, ...prev]);
       setRows(prev => prev.map((r, i) => (i === idx ? { ...r, batchId: docRef.id } : r)));

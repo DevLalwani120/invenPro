@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Pencil, Trash2, CalendarClock } from "lucide-react";
+import { Plus, Pencil, Trash2, CalendarClock, Search } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { Toast, useToast, ConfirmModal, Modal, Field, inputCls, PrimaryBtn, SaveBtn, Empty } from "../components/ui";
 import { addLedger as addLedgerFn } from "../firebase/ledger";
@@ -23,6 +23,7 @@ export default function BatchManager({ items, batches, ledger, batchTxnMap, addB
   const [modal,          setModal]          = useState(false);
   const [delId,          setDelId]          = useState(null);
   const [filter,         setFilter]         = useState("all");
+  const [searchQuery,    setSearchQuery]    = useState("");
   const [toast,          showToast]         = useToast();
   const [showOtherInput, setShowOtherInput] = useState(false);
   const [otherName,      setOtherName]      = useState("");
@@ -107,7 +108,52 @@ export default function BatchManager({ items, batches, ledger, batchTxnMap, addB
     showToast("Batch deleted");
   };
 
-  const list = batches.filter(b => filter === "all" || b.itemId === filter);
+  // Helper function to check if a batch matches the search query
+  const matchesSearch = (batch, query) => {
+    if (!query.trim()) return true;
+    
+    const q = query.toLowerCase().trim();
+    const item = itemMap[batch.itemId];
+    const supplier = ledgerMap[batch.supplierId];
+    
+    // Get all searchable fields as strings
+    const searchableFields = [
+      // Item related
+      item?.name || "",
+      item?.unit || "",
+      item?.id || "",
+      
+      // Batch fields
+      batch.batchNo || "",
+      batch.id || "",
+      
+      // Supplier
+      supplier?.name || "",
+      supplier?.id || "",
+      
+      // Quantities and prices (converted to string)
+      batch.quantity?.toString() || "",
+      batch.purchasePrice?.toString() || "",
+      batch.mrp?.toString() || "",
+      
+      // Expiry date (formatted)
+      batch.expiryDate ? format(batch.expiryDate, "dd MMM yyyy") : "",
+      batch.expiryDate ? format(batch.expiryDate, "yyyy-MM-dd") : "",
+      batch.expiryDate ? format(batch.expiryDate, "MMM dd, yyyy") : "",
+      
+      // Computed fields
+      computeClosingQty(batch, batchTxnMap || {})?.toString() || "",
+    ];
+    
+    // Check if any field contains the search query
+    return searchableFields.some(field => 
+      field.toLowerCase().includes(q)
+    );
+  };
+
+  // First filter by item, then by search query
+  const filteredByItem = batches.filter(b => filter === "all" || b.itemId === filter);
+  const list = filteredByItem.filter(b => matchesSearch(b, searchQuery));
 
   return (
     <div className="space-y-6">
@@ -127,18 +173,39 @@ export default function BatchManager({ items, batches, ledger, batchTxnMap, addB
         💡 <strong>Opening Qty</strong> is what you enter here and never changes. Current stock is calculated live from Entry Sheet transactions — view it in the <strong>Current</strong> column or the <strong>Batch Ledger</strong> report.
       </div>
 
-      <div className="flex items-center gap-3">
-        <span className="text-sm text-slate-500 font-medium shrink-0">Filter:</span>
-        <select value={filter} onChange={e=>setFilter(e.target.value)}
-          className="px-4 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white max-w-xs">
-          <option value="all">All Items</option>
-          {items.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
-        </select>
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-slate-500 font-medium shrink-0">Filter:</span>
+          <select value={filter} onChange={e=>setFilter(e.target.value)}
+            className="px-4 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white max-w-xs">
+            <option value="all">All Items</option>
+            {items.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}
+          </select>
+        </div>
+        
+        <div className="relative flex-1 w-full sm:max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search anything (name, batch, supplier, qty, price, date...)"
+            className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         {list.length === 0
-          ? <Empty icon={CalendarClock} title="No batches found" sub="Add a batch using the button above"/>
+          ? <Empty icon={CalendarClock} title="No batches found" sub={searchQuery ? `No results found for "${searchQuery}"` : "Add a batch using the button above"}/>
           : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
