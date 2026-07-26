@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { Plus, Pencil, Trash2, FileText, Calculator, PlusCircle, MinusCircle } from "lucide-react";
 import { Toast, useToast, ConfirmModal, Modal, Field, inputCls, PrimaryBtn, SaveBtn, Empty } from "../components/ui";
+import SearchableSelect from "../components/SearchableSelect";
 import { addBatch as addBatchFn } from "../firebase/batches";
 import { addLedger as addLedgerFn } from "../firebase/ledger";
 import { computeClosingQty } from "../firebase/stock";
@@ -52,6 +53,11 @@ export default function EntrySheet({ items, batches, stockMap, batchTxnMap, even
   const ledgerMap = Object.fromEntries(localLedger.map(l => [l.id, l]));
 
   const selectedEvent = eventMap[header.eventId];
+
+  const itemOptions = useMemo(
+    () => items.map(i => ({ value: i.id, label: i.name, sub: `${stockMap[i.id] ?? 0} ${i.unit} in stock${i.category ? " · " + i.category : ""}` })),
+    [items, stockMap]
+  );
   const isLessEvent   = selectedEvent?.type === "Less";
 
   const getClosingQty = (batch) => computeClosingQty(batch, batchTxnMap || {});
@@ -239,9 +245,16 @@ export default function EntrySheet({ items, batches, stockMap, batchTxnMap, even
 
     if (isLessEvent) {
       for (const row of validRows) {
-        if (!row.batchId) continue;
+        const item = itemMap[row.itemId];
+        if (!row.batchId) {
+          showToast(`Select a batch for "${item?.name ?? "this item"}" — consumption can't be recorded without a batch`, "error");
+          return;
+        }
         const batch = localBatches.find(b => b.id === row.batchId);
-        if (!batch) continue;
+        if (!batch) {
+          showToast(`Batch not found for "${item?.name ?? "this item"}" — please reselect`, "error");
+          return;
+        }
         let available = getClosingQty(batch);
         if (editId) {
           const oldEntry = entries.find(en => en.id === editId);
@@ -519,22 +532,30 @@ export default function EntrySheet({ items, batches, stockMap, batchTxnMap, even
 
               return (
                 <div key={idx} className="space-y-2">
-                  {/* SINGLE LINE: Item | Qty | Rate | Amount | Batch | + | − */}
+                  {/* SINGLE LINE: Item | Available | Qty | Unit | Rate | Amount | Batch | + | − */}
                   <div className="flex items-center gap-1.5">
-                    <select required value={row.itemId} onChange={e=>handleItemChange(idx, e.target.value)}
-                      className="flex-[2] min-w-0 px-2.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white">
-                      <option value="">— Item —</option>
-                      {items.map(i => (
-                        <option key={i.id} value={i.id}>
-                          {i.name} ({stockMap[i.id] ?? 0} {i.unit})
-                        </option>
-                      ))}
-                    </select>
+                    <SearchableSelect
+                      className="flex-[2.4] min-w-0"
+                      options={itemOptions}
+                      value={row.itemId}
+                      onChange={val => handleItemChange(idx, val)}
+                      placeholder="— Item —"
+                      clearable={false}
+                    />
+
+                    <input disabled type="text" value={item ? (stockMap[item.id] ?? 0) : ""}
+                      placeholder="Stock"
+                      title="Available stock (current)"
+                      className="w-16 px-2 py-2.5 rounded-xl border border-slate-200 text-sm text-center bg-slate-50 text-slate-500 font-semibold"/>
 
                     <input required type="number" min="0" step="0.001" value={row.qty}
                       onChange={e=>handleRowFieldChange(idx, "qty", e.target.value)}
                       placeholder="Qty"
                       className="w-16 px-2 py-2.5 rounded-xl border border-slate-200 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-400"/>
+
+                    <input disabled type="text" value={item?.unit ?? ""}
+                      placeholder="Unit"
+                      className="w-14 px-2 py-2.5 rounded-xl border border-slate-200 text-sm text-center bg-slate-50 text-slate-500"/>
 
                     <input type="number" min="0" step="0.01" value={row.rate}
                       onChange={e=>handleRowFieldChange(idx, "rate", e.target.value)}
@@ -547,16 +568,17 @@ export default function EntrySheet({ items, batches, stockMap, batchTxnMap, even
                       className="w-24 px-2 py-2.5 rounded-xl border border-slate-200 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-400"/>
 
                     {row.itemId && header.eventId ? (
-                      <select value={row.batchId} onChange={e=>handleBatchChange(idx, e.target.value)}
-                        className="flex-[1.3] min-w-0 px-2 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white">
-                        <option value="">— Batch —</option>
-                        {itemBatches.map(b => (
-                          <option key={b.id} value={b.id}>
-                            {b.batchNo} · {getClosingQty(b)}
-                          </option>
-                        ))}
-                        {!isLessEvent && <option value="__other__">➕ New</option>}
-                      </select>
+                      <SearchableSelect
+                        className="flex-[1.3] min-w-0"
+                        invalid={isLessEvent && !row.batchId}
+                        options={[
+                          ...itemBatches.map(b => ({ value: b.id, label: b.batchNo, sub: `${getClosingQty(b)} ${item?.unit ?? ""} available` })),
+                          ...(!isLessEvent ? [{ value: "__other__", label: "➕ New Batch" }] : []),
+                        ]}
+                        value={row.batchId}
+                        onChange={val => handleBatchChange(idx, val)}
+                        placeholder={isLessEvent ? "— Batch (required) —" : "— Batch —"}
+                      />
                     ) : (
                       <div className="flex-[1.3] min-w-0"/>
                     )}
@@ -570,6 +592,10 @@ export default function EntrySheet({ items, batches, stockMap, batchTxnMap, even
                       <MinusCircle size={17}/>
                     </button>
                   </div>
+
+                  {isLessEvent && row.itemId && itemBatches.length === 0 && (
+                    <span className="text-xs text-red-500 whitespace-nowrap">⚠ No batches — can't consume</span>
+                  )}
 
                   {stockWarning && (
                     <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-lg">⚠ {stockWarning}</p>

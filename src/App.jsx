@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   LayoutDashboard, Package, Layers, BookUser, FileText, BookOpen, ClipboardList, FileSpreadsheet,
-  Menu, X, RefreshCw, LogOut, ShieldCheck,
+  Menu, X, RefreshCw, LogOut, ShieldCheck, Snowflake,
 } from "lucide-react";
 import Dashboard    from "./pages/Dashboard";
 import ItemMaster   from "./pages/ItemMaster";
@@ -12,6 +12,7 @@ import LedgerMaster from "./pages/LedgerMaster";
 import EntrySheet   from "./pages/EntrySheet";
 import BatchLedger  from "./pages/BatchLedger";
 import StockReport  from "./pages/StockReport";
+import ColdStorageReport from "./pages/ColdStorageReport";
 import AdminPanel   from "./pages/AdminPanel";
 import Auth         from "./pages/Auth";
 import AlertBell    from "./components/AlertBell";
@@ -32,6 +33,7 @@ const NAV = [
   { id:"ledger",      label:"Ledger Master", icon:BookUser         },
   { id:"stockreport", label:"Stock Report",  icon:ClipboardList    },
   { id:"batchledger", label:"Batch Ledger",  icon:BookOpen         },
+  { id:"coldstoragereport", label:"Cold Storage Report", icon:Snowflake },
 ];
 
 export default function App() {
@@ -274,6 +276,12 @@ export default function App() {
             <BatchLedger
               items={items} batches={batches}
               events={events} ledger={ledger} batchTxnMap={batchTxnMap}
+            />
+          )}
+
+          {!loading && page === "coldstoragereport" && (
+            <ColdStorageReport
+              items={items} batches={batches} ledger={ledger} batchTxnMap={batchTxnMap}
             />
           )}
 

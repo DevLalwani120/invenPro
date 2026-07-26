@@ -1,14 +1,16 @@
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { BookOpen, TrendingUp, TrendingDown } from "lucide-react";
-import { Field, inputCls, Empty } from "../components/ui";
+import { Field, Empty } from "../components/ui";
 import { DateRangePicker } from "../components/DateRangePicker";
+import SearchableSelect from "../components/SearchableSelect";
 import { computeRangeBatchLedger } from "../firebase/stock";
 
 export default function BatchLedger({ items, batches, events, ledger, batchTxnMap }) {
   const [itemId,  setItemId]  = useState("");
   const [batchId, setBatchId] = useState("");
   const [range,   setRange]   = useState({ from: null, to: null });
+  const [search,  setSearch]  = useState("");
 
   const safeItems   = items   || [];
   const safeBatches = batches || [];
@@ -41,6 +43,25 @@ export default function BatchLedger({ items, batches, events, ledger, batchTxnMa
 
   const { openingAtStart, rows: ledgerRows, closingAtEnd } = ledgerResult;
 
+  const itemOptions  = safeItems.map(i => ({ value: i.id, label: i.name, sub: i.category }));
+  const batchOptions = itemBatches.map(b => ({ value: b.id, label: b.batchNo, sub: `Opening: ${b.quantity}` }));
+
+  // Global search across the ledger rows — matches event name, doc no, or ledger name
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return ledgerRows;
+    return ledgerRows.filter((row) => {
+      const ev    = eventMap[row.eventId];
+      const party = ledgerMap[row.ledgerId];
+      return (
+        ev?.name?.toLowerCase().includes(q) ||
+        row.docNo?.toLowerCase().includes(q) ||
+        party?.name?.toLowerCase().includes(q) ||
+        row.ledgerOtherName?.toLowerCase().includes(q)
+      );
+    });
+  }, [ledgerRows, search, eventMap, ledgerMap]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -52,18 +73,14 @@ export default function BatchLedger({ items, batches, events, ledger, batchTxnMa
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Select Item">
-          <select value={itemId} onChange={e => { setItemId(e.target.value); setBatchId(""); }} className={inputCls}>
-            <option value="">— Select Item —</option>
-            {safeItems.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-          </select>
+          <SearchableSelect options={itemOptions} value={itemId}
+            onChange={val => { setItemId(val); setBatchId(""); setSearch(""); }}
+            placeholder="— Select Item —"/>
         </Field>
         <Field label="Select Batch">
-          <select value={batchId} onChange={e => setBatchId(e.target.value)} className={inputCls} disabled={!itemId}>
-            <option value="">— Select Batch —</option>
-            {itemBatches.map(b => (
-              <option key={b.id} value={b.id}>{b.batchNo} · Opening: {b.quantity}</option>
-            ))}
-          </select>
+          <SearchableSelect options={batchOptions} value={batchId}
+            onChange={val => { setBatchId(val); setSearch(""); }}
+            placeholder="— Select Batch —" disabled={!itemId}/>
         </Field>
       </div>
 
@@ -98,6 +115,15 @@ export default function BatchLedger({ items, batches, events, ledger, batchTxnMa
         ) : ledgerRows.length === 0 ? (
           <Empty icon={BookOpen} title="No transactions in this range" sub="Try a wider date range or select All Time"/>
         ) : (
+          <>
+          <div className="px-5 py-4 border-b border-slate-50">
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search by event, doc no, or ledger…"
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"/>
+          </div>
+          {filteredRows.length === 0 ? (
+            <p className="px-5 py-8 text-sm text-slate-400 text-center">No transactions match your search</p>
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -108,7 +134,7 @@ export default function BatchLedger({ items, batches, events, ledger, batchTxnMa
                 </tr>
               </thead>
               <tbody>
-                {ledgerRows.map((row, idx) => {
+                {filteredRows.map((row, idx) => {
                   const ev    = eventMap[row.eventId];
                   const party = ledgerMap[row.ledgerId];
                   const isAdd = ev?.type === "Add";
@@ -150,6 +176,8 @@ export default function BatchLedger({ items, batches, events, ledger, batchTxnMa
               </tbody>
             </table>
           </div>
+          )}
+          </>
         )}
       </div>
     </div>

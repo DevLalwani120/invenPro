@@ -1,14 +1,16 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { ClipboardList, TrendingUp, TrendingDown, Search } from "lucide-react";
-import { Field, inputCls, Empty, PrimaryBtn } from "../components/ui";
+import { Field, Empty, PrimaryBtn } from "../components/ui";
 import { DateRangePicker } from "../components/DateRangePicker";
+import SearchableSelect from "../components/SearchableSelect";
 import { computeRangeBatchLedger } from "../firebase/stock";
 
 export default function StockReport({ items, batches, entries, events, ledger, stockMap, batchTxnMap, onViewTransaction }) {
   const [itemId,  setItemId]  = useState("");
   const [range,   setRange]   = useState({ from: null, to: null });
   const [report,  setReport]  = useState(null); // null until "Get Report" clicked
+  const [search,  setSearch]  = useState("");
 
   const safeItems   = items   || [];
   const safeBatches = batches || [];
@@ -21,6 +23,7 @@ export default function StockReport({ items, batches, entries, events, ledger, s
   const ledgerMap = Object.fromEntries(safeLedger.map(l => [l.id, l]));
 
   const selectedItem = itemMap[itemId];
+  const itemOptions = safeItems.map(i => ({ value: i.id, label: i.name, sub: i.category }));
 
   const handleGetReport = () => {
     if (!itemId) return;
@@ -55,8 +58,26 @@ export default function StockReport({ items, batches, entries, events, ledger, s
   };
 
   // If item or range changes after a report is shown, clear it so stale data isn't displayed
-  const handleItemChange = (val) => { setItemId(val); setReport(null); };
+  const handleItemChange = (val) => { setItemId(val); setReport(null); setSearch(""); };
   const handleRangeChange = (val) => { setRange(val); setReport(null); };
+
+  // Global search across the resulting transaction rows — matches event name, batch no, doc no, or ledger name
+  const filteredRows = useMemo(() => {
+    if (!report) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return report.rows;
+    return report.rows.filter((r) => {
+      const ev    = eventMap[r.eventId];
+      const party = ledgerMap[r.ledgerId];
+      return (
+        ev?.name?.toLowerCase().includes(q) ||
+        r.batch?.batchNo?.toLowerCase().includes(q) ||
+        r.docNo?.toLowerCase().includes(q) ||
+        party?.name?.toLowerCase().includes(q) ||
+        r.entry?.ledgerOtherName?.toLowerCase().includes(q)
+      );
+    });
+  }, [report, search, eventMap, ledgerMap]);
 
   return (
     <div className="space-y-6">
@@ -69,10 +90,7 @@ export default function StockReport({ items, batches, entries, events, ledger, s
 
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-4">
         <Field label="Select Item *">
-          <select value={itemId} onChange={e => handleItemChange(e.target.value)} className={inputCls}>
-            <option value="">— Select Item —</option>
-            {safeItems.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-          </select>
+          <SearchableSelect options={itemOptions} value={itemId} onChange={handleItemChange} placeholder="— Select Item —"/>
         </Field>
 
         <DateRangePicker value={range} onChange={handleRangeChange}/>
@@ -129,12 +147,17 @@ export default function StockReport({ items, batches, entries, events, ledger, s
           {/* Transaction history */}
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-50">
-              <p className="font-bold text-slate-800 text-sm" style={{fontFamily:"'Syne',sans-serif"}}>
-                Transactions in range ({report.rows.length})
+              <p className="font-bold text-slate-800 text-sm mb-3" style={{fontFamily:"'Syne',sans-serif"}}>
+                Transactions in range ({filteredRows.length})
               </p>
+              <input value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Search by event, batch no, doc no, or ledger…"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"/>
             </div>
             {report.rows.length === 0 ? (
               <p className="px-5 py-8 text-sm text-slate-400 text-center">No transactions in this date range</p>
+            ) : filteredRows.length === 0 ? (
+              <p className="px-5 py-8 text-sm text-slate-400 text-center">No transactions match your search</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -146,7 +169,7 @@ export default function StockReport({ items, batches, entries, events, ledger, s
                     </tr>
                   </thead>
                   <tbody>
-                    {report.rows.map((r, i) => {
+                    {filteredRows.map((r, i) => {
                       const ev    = eventMap[r.eventId];
                       const party = ledgerMap[r.ledgerId];
                       const isAdd = ev?.type === "Add";

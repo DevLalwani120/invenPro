@@ -178,6 +178,88 @@ export function computeRangeBatchLedger(batch, batchTxnMap, range) {
 }
 
 /**
+ * COLD STORAGE MOVEMENT for ONE batch at ONE ledger (cold storage location).
+ *
+ * Unlike computeRangeBatchLedger, this does NOT start from the batch's
+ * opening qty — a cold storage location isn't the batch's home, it's a
+ * separate place stock is sent to / received from. The running balance
+ * here starts at 0 and only moves via entries recorded against this
+ * specific ledgerId (e.g. "Sent To" = Less, "Recd From" = Add).
+ *
+ * Returns { openingAtStart, rows, closingAtEnd, totalSent, totalRecd }.
+ */
+export function computeColdStorageBatchMovement(batch, batchTxnMap, ledgerId, range) {
+  if (!batch || !ledgerId) return { openingAtStart: 0, rows: [], closingAtEnd: 0, totalSent: 0, totalRecd: 0 };
+
+  const allTxns = ((batchTxnMap && batchTxnMap[batch.id]) || []).filter(
+    (t) => t.entry?.ledgerId === ledgerId
+  );
+  const from = range?.from || null;
+  const to   = range?.to   || null;
+
+  let openingAtStart = 0;
+  const inRangeTxns = [];
+
+  allTxns.forEach((t) => {
+    const d = t.date ? t.date.getTime() : 0;
+    const beforeStart = from ? d < from.getTime() : false;
+    const afterEnd    = to   ? d > to.getTime()   : false;
+
+    if (beforeStart) openingAtStart += (t.delta || 0);
+    else if (!afterEnd) inRangeTxns.push(t);
+  });
+
+  let running = openingAtStart;
+  let totalSent = 0, totalRecd = 0;
+  const rows = inRangeTxns.map((t) => {
+    const openingQty = running;
+    const closingQty = running + (t.delta || 0);
+    running = closingQty;
+    if ((t.delta || 0) < 0) totalSent += Math.abs(t.delta);
+    else totalRecd += (t.delta || 0);
+    return {
+      date: t.entry.date,
+      eventId: t.entry.eventId,
+      docNo: t.entry.docNo,
+      entry: t.entry,
+      qty: t.row.qty,
+      rate: t.row.rate ?? null,
+      amount: t.row.amount ?? null,
+      openingQty,
+      closingQty,
+      delta: t.delta,
+    };
+  });
+
+  return { openingAtStart, rows, closingAtEnd: running, totalSent, totalRecd };
+}
+
+/**
+ * COLD STORAGE REPORT for a whole ledger (location) across ALL batches.
+ * Returns one row per batch that has ANY movement (in or out of range)
+ * against this ledgerId, plus grand totals.
+ */
+export function computeColdStorageReport(batches, batchTxnMap, ledgerId, range) {
+  const batchRows = [];
+  let grandSent = 0, grandRecd = 0, grandBalance = 0;
+
+  (batches || []).forEach((batch) => {
+    const txns = (batchTxnMap && batchTxnMap[batch.id]) || [];
+    const touchesLedger = txns.some((t) => t.entry?.ledgerId === ledgerId);
+    if (!touchesLedger) return;
+
+    const result = computeColdStorageBatchMovement(batch, batchTxnMap, ledgerId, range);
+    grandSent += result.totalSent;
+    grandRecd += result.totalRecd;
+    grandBalance += result.closingAtEnd;
+
+    batchRows.push({ batch, ...result });
+  });
+
+  return { batchRows, grandSent, grandRecd, grandBalance };
+}
+
+/**
  * Filter a flat list of { date, ... } rows to only those within [from, to].
  * Used by Stock Report for per-item transaction history filtering.
  */
