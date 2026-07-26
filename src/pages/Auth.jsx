@@ -85,7 +85,7 @@ export default function Auth() {
             ))}
           </div>
         </div>
-        <p className="text-white/30 text-xs">© 2025 InvenPro. Built with Firebase + React.</p>
+        <p className="text-white/30 text-xs"></p>
       </div>
 
       {/* Right panel — form */}
@@ -173,7 +173,7 @@ export default function Auth() {
                                     "Send Reset Email"}
               </button>
             </form>
-
+{/* 
             {mode === "login" && (
               <p className="text-center text-sm text-slate-500 mt-5">
                 Trouble signing in?{" "}
@@ -182,7 +182,7 @@ export default function Auth() {
                   Reset password
                 </button>
               </p>
-            )}
+            )} */}
             {mode === "forgot" && (
               <p className="text-center text-sm text-slate-500 mt-5">
                 Remember it?{" "}
