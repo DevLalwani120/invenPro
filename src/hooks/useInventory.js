@@ -64,14 +64,19 @@ export function useInventory(events) {
     return map;
   }, [batches, batchTxnMap]);
 
+  const itemMap = useMemo(
+    () => Object.fromEntries(items.map((i) => [i.id, i])),
+    [items]
+  );
+
   const expiredBatches  = batches.filter((b) =>
-    b.expiryDate && b.expiryDate < now && (closingQtyMap[b.id] ?? 0) > 0
+    b.expiryDate && b.expiryDate < now && (closingQtyMap[b.id] ?? 0) > 0 && !itemMap[b.itemId]?.alertExempt
   );
   const expiringBatches = batches.filter((b) =>
-    b.expiryDate && b.expiryDate >= now && b.expiryDate <= warn && (closingQtyMap[b.id] ?? 0) > 0
+    b.expiryDate && b.expiryDate >= now && b.expiryDate <= warn && (closingQtyMap[b.id] ?? 0) > 0 && !itemMap[b.itemId]?.alertExempt
   );
   const lowStockItems   = items.filter((item) =>
-    item.minStockLevel != null && (stockMap[item.id] ?? 0) <= Number(item.minStockLevel)
+    !item.alertExempt && item.minStockLevel != null && (stockMap[item.id] ?? 0) <= Number(item.minStockLevel)
   );
   const totalAlerts = expiredBatches.length + expiringBatches.length + lowStockItems.length;
 

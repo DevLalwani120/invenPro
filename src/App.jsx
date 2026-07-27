@@ -52,6 +52,7 @@ export default function App() {
     addUnit, updateUnit, deleteUnit,
     addEvent, updateEvent, deleteEvent,
     updateUser,
+    addUser,
   } = useAdmin();
 
   // Live, real-time inventory data — no manual refresh needed anywhere
@@ -289,11 +290,12 @@ export default function App() {
             <AdminPanel
               categories={categories} units={units} events={events}
               users={users} loginLogs={loginLogs}
+              items={items} stockMap={stockMap}
               loading={adminLoading} error={adminError} refetch={adminRefetch}
               addCategory={addCategory} updateCategory={updateCategory} deleteCategory={deleteCategory}
               addUnit={addUnit} updateUnit={updateUnit} deleteUnit={deleteUnit}
               addEvent={addEvent} updateEvent={updateEvent} deleteEvent={deleteEvent}
-              updateUser={updateUser}
+              updateUser={updateUser} updateItem={updateItem} addUser={addUser}
             />
           )}
           {!loading && page === "admin" && !isAdmin && (

@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { Plus, Trash2, ShieldCheck, Users, Tag, Ruler, Clock, CheckCircle, XCircle, RefreshCw, Zap, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
+import { Plus, Trash2, ShieldCheck, Users, Tag, Ruler, Clock, CheckCircle, XCircle, RefreshCw, Zap, ArrowUpCircle, ArrowDownCircle, BellOff, Search, UserPlus, Eye, EyeOff } from "lucide-react";
 import { format } from "date-fns";
-import { Toast, useToast, Field, inputCls } from "../components/ui";
+import { Toast, useToast, Field, inputCls, Modal, SaveBtn } from "../components/ui";
 
 const TABS = [
   { id:"categories", label:"Categories",   icon:Tag       },
   { id:"units",      label:"Units",        icon:Ruler     },
   { id:"events",     label:"Event Master", icon:Zap        },
+  { id:"alerts",     label:"Alert Exceptions", icon:BellOff },
   { id:"users",      label:"Users",        icon:Users     },
   { id:"logs",       label:"Login Report", icon:Clock     },
 ];
@@ -240,10 +241,103 @@ function EventMaster({ events, onAdd, onToggle, onDelete }) {
   );
 }
 
-// ── Users tab ─────────────────────────────────────────────────
-function UsersTab({ users, onToggle }) {
-  const [toast, showToast] = useToast();
+// ── Alert Exceptions tab — mark items to skip in daily email alerts ──
+function AlertExceptionsTab({ items, stockMap, onToggleItem }) {
+  const [search, setSearch] = useState("");
   const [busyId, setBusyId] = useState(null);
+  const [toast,  showToast] = useToast();
+
+  const q = search.trim().toLowerCase();
+  const filtered = items.filter(i =>
+    i.name?.toLowerCase().includes(q) || i.category?.toLowerCase().includes(q)
+  );
+  const exemptCount = items.filter(i => i.alertExempt).length;
+
+  const handleToggle = async (item) => {
+    setBusyId(item.id);
+    try {
+      await onToggleItem(item.id, { alertExempt: !item.alertExempt });
+      showToast(item.alertExempt ? `"${item.name}" will get alerts again` : `"${item.name}" excluded from email alerts`);
+    } catch {
+      showToast("Error updating item", "error");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <Toast toast={toast}/>
+
+      <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5 text-xs text-blue-700">
+        🔕 Items marked here are skipped from the daily email alert — low stock, expired, and expiring-soon warnings for them won't be emailed. They still show normally everywhere else in the app.
+      </div>
+
+      <div className="relative">
+        <Search size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"/>
+        <input value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Search by item name or category…"
+          className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 shadow-sm"/>
+      </div>
+
+      <p className="text-xs text-slate-400">{exemptCount} item{exemptCount !== 1 ? "s" : ""} currently excluded from alerts</p>
+
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        {filtered.length === 0 ? (
+          <div className="py-10 text-center text-slate-400 text-sm">No items found</div>
+        ) : (
+          <div className="max-h-[60vh] overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0">
+                <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold text-xs uppercase tracking-wide">
+                  {["Item","Category","Current Stock","Min Level","Alert Status","Action"].map(h=>(
+                    <th key={h} className="text-left px-5 py-3.5">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((item) => (
+                  <tr key={item.id} className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${item.alertExempt ? "bg-slate-50/40" : ""}`}>
+                    <td className="px-5 py-3.5 font-semibold text-slate-800">{item.name}</td>
+                    <td className="px-5 py-3.5 text-slate-500">{item.category || "—"}</td>
+                    <td className="px-5 py-3.5 text-slate-600">{stockMap[item.id] ?? 0} {item.unit}</td>
+                    <td className="px-5 py-3.5 text-slate-500">{item.minStockLevel ?? "—"}</td>
+                    <td className="px-5 py-3.5">
+                      {item.alertExempt
+                        ? <span className="flex items-center gap-1 text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-1 rounded-lg w-fit"><EyeOff size={11}/>Excluded</span>
+                        : <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg w-fit"><Eye size={11}/>Alerting</span>
+                      }
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <button onClick={() => handleToggle(item)} disabled={busyId === item.id}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50
+                          ${item.alertExempt
+                            ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}>
+                        {item.alertExempt ? "Re-enable Alerts" : "Exclude from Alerts"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Users tab ─────────────────────────────────────────────────
+const EMPTY_USER_FORM = { name: "", email: "", password: "", role: "user" };
+
+function UsersTab({ users, onToggle, onAddUser }) {
+  const [toast, showToast]   = useToast();
+  const [busyId, setBusyId]  = useState(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm]       = useState(EMPTY_USER_FORM);
+  const [creating, setCreating] = useState(false);
 
   const handleToggle = async (uid, active) => {
     setBusyId(uid);
@@ -257,9 +351,70 @@ function UsersTab({ users, onToggle }) {
     }
   };
 
+  const openAdd = () => { setForm(EMPTY_USER_FORM); setShowAdd(true); };
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim() || !form.email.trim()) {
+      showToast("Enter a name and email", "error"); return;
+    }
+    if (form.password.length < 6) {
+      showToast("Password must be at least 6 characters", "error"); return;
+    }
+    setCreating(true);
+    try {
+      await onAddUser(form);
+      showToast(`"${form.name.trim()}" added — they can log in now!`);
+      setShowAdd(false);
+    } catch (err) {
+      showToast(err.message || "Error creating user", "error");
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <Toast toast={toast}/>
+
+      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add New User">
+        <form onSubmit={handleCreate} className="space-y-4">
+          <Field label="Name *">
+            <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder="Full name" className={inputCls} required/>
+          </Field>
+          <Field label="Email *">
+            <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+              placeholder="name@example.com" className={inputCls} required/>
+          </Field>
+          <Field label="Password *">
+            <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+              placeholder="Min 6 characters" className={inputCls} required/>
+          </Field>
+          <Field label="Role">
+            <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} className={inputCls}>
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
+          </Field>
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={() => setShowAdd(false)}
+              className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors">
+              Cancel
+            </button>
+            <SaveBtn disabled={creating}>{creating ? "Creating…" : "Create User"}</SaveBtn>
+          </div>
+        </form>
+      </Modal>
+
+      <div className="flex justify-end">
+        <button onClick={openAdd}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5"
+          style={{background:"linear-gradient(135deg,#0f766e,#0d9488)"}}>
+          <UserPlus size={15}/> Add User
+        </button>
+      </div>
+
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         {users.length === 0 ? (
           <div className="py-10 text-center text-slate-400 text-sm">
@@ -356,10 +511,11 @@ function LogsTab({ loginLogs }) {
 // ── Main Admin Page ───────────────────────────────────────────
 export default function AdminPanel({
   categories, units, events, users, loginLogs, loading, error,
+  items, stockMap,
   addCategory, updateCategory, deleteCategory,
   addUnit, updateUnit, deleteUnit,
   addEvent, updateEvent, deleteEvent,
-  updateUser, refetch,
+  updateUser, updateItem, addUser, refetch,
 }) {
   const [tab, setTab] = useState("categories");
 
@@ -398,6 +554,7 @@ export default function AdminPanel({
             {id === "categories" && <span className="bg-white/20 text-xs px-1.5 py-0.5 rounded-md">{categories.length}</span>}
             {id === "units"      && <span className="bg-white/20 text-xs px-1.5 py-0.5 rounded-md">{units.length}</span>}
             {id === "events"     && <span className="bg-white/20 text-xs px-1.5 py-0.5 rounded-md">{events.length}</span>}
+            {id === "alerts"     && <span className="bg-white/20 text-xs px-1.5 py-0.5 rounded-md">{items.filter(i => i.alertExempt).length}</span>}
             {id === "users"      && <span className="bg-white/20 text-xs px-1.5 py-0.5 rounded-md">{users.length}</span>}
             {id === "logs"       && <span className="bg-white/20 text-xs px-1.5 py-0.5 rounded-md">{loginLogs.length}</span>}
           </button>
@@ -423,8 +580,11 @@ export default function AdminPanel({
             <EventMaster events={events}
               onAdd={addEvent} onToggle={updateEvent} onDelete={deleteEvent}/>
           )}
+          {tab === "alerts" && (
+            <AlertExceptionsTab items={items} stockMap={stockMap} onToggleItem={updateItem}/>
+          )}
           {tab === "users" && (
-            <UsersTab users={users} onToggle={updateUser}/>
+            <UsersTab users={users} onToggle={updateUser} onAddUser={addUser}/>
           )}
           {tab === "logs" && (
             <LogsTab loginLogs={loginLogs}/>

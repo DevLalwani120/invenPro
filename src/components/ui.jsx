@@ -77,10 +77,10 @@ export function PrimaryBtn({ children, onClick, type = "button", disabled = fals
   );
 }
 
-export function SaveBtn({ children = "Save" }) {
+export function SaveBtn({ children = "Save", disabled = false }) {
   return (
-    <button type="submit"
-      className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold shadow hover:shadow-md transition-all"
+    <button type="submit" disabled={disabled}
+      className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold shadow hover:shadow-md transition-all disabled:opacity-60 disabled:cursor-not-allowed"
       style={{background:"linear-gradient(135deg,#0f766e,#0d9488)"}}>
       {children}
     </button>

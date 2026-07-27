@@ -5,6 +5,7 @@ import {
   getEvents, addEvent, updateEvent, deleteEvent,
   getUsers, updateUser, getLoginLogs,
 } from "../firebase/admin";
+import { adminCreateUser } from "../firebase/adminUsers";
 
 export function useAdmin() {
   const [categories, setCategories] = useState([]);
@@ -51,5 +52,6 @@ export function useAdmin() {
     updateEvent:    wrap((id, d) => updateEvent(id, d)),
     deleteEvent:    wrap(deleteEvent),
     updateUser:     wrap((id, d) => updateUser(id, d)),
+    addUser:        wrap((data) => adminCreateUser(data)),
   };
 }

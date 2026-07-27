@@ -55,10 +55,10 @@ async function fetchData() {
   const stockMap = {};
   allBatches.forEach(b => { stockMap[b.itemId] = (stockMap[b.itemId] || 0) + (b.quantity || 0); });
 
-  const expiredBatches  = allBatches.filter(b => b.expiryDate && b.expiryDate < now  && b.quantity > 0);
-  const expiringBatches = allBatches.filter(b => b.expiryDate && b.expiryDate >= now && b.expiryDate <= in15 && b.quantity > 0);
+  const expiredBatches  = allBatches.filter(b => b.expiryDate && b.expiryDate < now  && b.quantity > 0 && !itemMap[b.itemId]?.alertExempt);
+  const expiringBatches = allBatches.filter(b => b.expiryDate && b.expiryDate >= now && b.expiryDate <= in15 && b.quantity > 0 && !itemMap[b.itemId]?.alertExempt);
   const lowStockItems   = Object.values(itemMap).filter(
-    item => item.minStockLevel != null && (stockMap[item.id] ?? 0) <= Number(item.minStockLevel)
+    item => !item.alertExempt && item.minStockLevel != null && (stockMap[item.id] ?? 0) <= Number(item.minStockLevel)
   );
 
   return { itemMap, ledgerMap, stockMap, expiredBatches, expiringBatches, lowStockItems };
