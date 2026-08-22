@@ -1,5 +1,5 @@
 import {
-  collection, addDoc, updateDoc, deleteDoc,
+  collection, addDoc, updateDoc, deleteDoc, writeBatch,
   doc, onSnapshot, query, orderBy, serverTimestamp, Timestamp,
 } from "firebase/firestore";
 import { db } from "./config";
@@ -45,6 +45,32 @@ export const updateEntry = (id, data) =>
   });
 
 export const deleteEntry = (id) => deleteDoc(doc(db, COL, id));
+
+/** Create many entries atomically (used by Excel imports). */
+export const addEntriesBatch = async (entries) => {
+  const batch = writeBatch(db);
+  const refs = [];
+
+  (entries || []).forEach((data) => {
+    const ref = doc(collection(db, COL));
+    refs.push(ref);
+    batch.set(ref, {
+      date: Timestamp.fromDate(data.date instanceof Date ? data.date : new Date(data.date)),
+      eventId: data.eventId,
+      docNo: data.docNo || "",
+      ledgerId: data.ledgerId || "",
+      ledgerOtherName: data.ledgerOtherName || "",
+      ledgerOtherMobile: data.ledgerOtherMobile || "",
+      ledgerOtherAddress: data.ledgerOtherAddress || "",
+      rows: data.rows || [],
+      createdAt: serverTimestamp(),
+    });
+  });
+
+  if (refs.length === 0) return [];
+  await batch.commit();
+  return refs;
+};
 
 /**
  * Live listener — fires immediately with current data, then again on

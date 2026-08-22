@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { format } from "date-fns";
 import { Plus, Pencil, Trash2, FileText, Calculator, PlusCircle, MinusCircle } from "lucide-react";
 import { Toast, useToast, ConfirmModal, Modal, Field, inputCls, PrimaryBtn, SaveBtn, Empty } from "../components/ui";
@@ -46,6 +46,8 @@ export default function EntrySheet({ items, batches, stockMap, batchTxnMap, even
   const [newBatchRowIdx, setNewBatchRowIdx] = useState(null);
   const [newBatch,        setNewBatch]      = useState(EMPTY_NEW_BATCH);
   const [savingBatch,     setSavingBatch]   = useState(false);
+  const newBatchNoRef     = useRef(null);
+  const newBatchExpiryRef = useRef(null);
 
   const activeEvents = events.filter(e => e.active !== false);
   const itemMap   = Object.fromEntries(items.map(i => [i.id, i]));
@@ -163,7 +165,14 @@ export default function EntrySheet({ items, batches, stockMap, batchTxnMap, even
 
   const handleSaveNewBatch = async (idx) => {
     const row = rows[idx];
-    if (!newBatch.batchNo.trim() || !newBatch.expiryDate) {
+
+    // Read straight from the inputs rather than the `newBatch` state object —
+    // this is the authoritative value at the moment of click, so it can't be
+    // stale even if a controlled onChange hasn't flushed yet.
+    const batchNo    = (newBatchNoRef.current?.value ?? "").trim();
+    const expiryDate = newBatchExpiryRef.current?.value ?? "";
+
+    if (!batchNo || !expiryDate) {
       showToast("Batch No and Expiry Date are required", "error"); return;
     }
     if (!row.itemId) { showToast("Select an item first", "error"); return; }
@@ -178,22 +187,25 @@ export default function EntrySheet({ items, batches, stockMap, batchTxnMap, even
       // the transaction).
       const docRef = await addBatchFn({
         itemId: row.itemId,
-        batchNo: newBatch.batchNo.trim(),
-        expiryDate: newBatch.expiryDate,
+        batchNo,
+        expiryDate,
         quantity: 0,
         purchasePrice: "", mrp: "", supplierId: header.ledgerId || "",
       });
       const newEntry = {
-        id: docRef.id, itemId: row.itemId, batchNo: newBatch.batchNo.trim(),
-        expiryDate: new Date(newBatch.expiryDate), quantity: 0,
+        id: docRef.id, itemId: row.itemId, batchNo,
+        expiryDate: new Date(expiryDate), quantity: 0,
       };
       setLocalBatches(prev => [newEntry, ...prev]);
       setRows(prev => prev.map((r, i) => (i === idx ? { ...r, batchId: docRef.id } : r)));
       setNewBatchRowIdx(null);
       setNewBatch(EMPTY_NEW_BATCH);
-      showToast(`Batch "${newBatch.batchNo.trim()}" created!`);
-    } catch {
-      showToast("Error creating batch", "error");
+      if (newBatchNoRef.current) newBatchNoRef.current.value = "";
+      if (newBatchExpiryRef.current) newBatchExpiryRef.current.value = "";
+      showToast(`Batch "${batchNo}" created!`);
+    } catch(error) {
+      console.log(error);
+      showToast(error?.message || "Error creating batch", "error");
     } finally {
       setSavingBatch(false);
     }
@@ -605,9 +617,11 @@ export default function EntrySheet({ items, batches, stockMap, batchTxnMap, even
                     <div className="p-3 bg-teal-50 rounded-xl border border-teal-100 space-y-2.5 ml-1">
                       <p className="text-xs font-semibold text-teal-700 uppercase tracking-wide">Create New Batch</p>
                       <div className="grid grid-cols-2 gap-2.5">
-                        <input value={newBatch.batchNo} onChange={e=>setNewBatch({...newBatch,batchNo:e.target.value})}
+                        <input ref={newBatchNoRef} key={`batchno-${idx}`} defaultValue=""
+                          onChange={e=>setNewBatch(prev=>({...prev,batchNo:e.target.value}))}
                           placeholder="Batch No *" className={inputCls}/>
-                        <input type="date" value={newBatch.expiryDate} onChange={e=>setNewBatch({...newBatch,expiryDate:e.target.value})}
+                        <input ref={newBatchExpiryRef} key={`expiry-${idx}`} type="date" defaultValue=""
+                          onChange={e=>setNewBatch(prev=>({...prev,expiryDate:e.target.value}))}
                           className={inputCls}/>
                       </div>
                       {row.qty ? (
@@ -617,8 +631,10 @@ export default function EntrySheet({ items, batches, stockMap, batchTxnMap, even
                       ) : (
                         <p className="text-xs text-red-500">⚠ Enter Qty above first</p>
                       )}
-                      <button type="button" onClick={()=>handleSaveNewBatch(idx)} disabled={savingBatch}
-                        className="w-full py-2 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 disabled:opacity-50 transition-colors">
+                      <button type="button"
+                        onClick={()=>handleSaveNewBatch(idx)}
+                        disabled={savingBatch || !newBatch.batchNo.trim() || !newBatch.expiryDate}
+                        className="w-full py-2 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
                         {savingBatch ? "Creating…" : "Create & Select Batch"}
                       </button>
                     </div>

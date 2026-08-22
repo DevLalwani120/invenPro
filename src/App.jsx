@@ -6,6 +6,8 @@ import {
 import Dashboard    from "./pages/Dashboard";
 import ItemMaster   from "./pages/ItemMaster";
 import ItemImport   from "./pages/ItemImport";
+import ConsumptionImport from "./pages/ConsumptionImport";
+import SewaImport from "./pages/SewaImport";
 import BatchManager from "./pages/BatchManager";
 import BatchImport  from "./pages/BatchImport";
 import LedgerMaster from "./pages/LedgerMaster";
@@ -28,6 +30,8 @@ const NAV = [
   { id:"entry",       label:"Entry Sheet",   icon:FileText         },
   { id:"items",       label:"Item Master",   icon:Package          },
   { id:"itemimport",  label:"Import Items",  icon:FileSpreadsheet  },
+  { id:"consumptionimport", label:"Import Consumptions", icon:FileSpreadsheet },
+  { id:"sewaimport", label:"Import Sewa", icon:FileSpreadsheet },
   { id:"batches",     label:"Batch Manager", icon:Layers           },
   { id:"batchimport", label:"Import Batches",icon:FileSpreadsheet  },
   { id:"ledger",      label:"Ledger Master", icon:BookUser         },
@@ -65,7 +69,7 @@ export default function App() {
     addLedger, updateLedger, deleteLedger,
   } = useInventory(events);
 
-  const { addEntry, updateEntry, deleteEntry } = useEntries();
+  const { addEntry, addEntriesBatch, updateEntry, deleteEntry } = useEntries();
 
   const navigate = (id) => { setPage(id); setSideOpen(false); };
 
@@ -252,6 +256,20 @@ export default function App() {
           )}
           {!loading && page === "itemimport" && (
             <ItemImport items={items} categories={categories} units={units} addItem={addItem}/>
+          )}
+          {!loading && page === "consumptionimport" && (
+            <ConsumptionImport
+              items={items} batches={batches}
+              events={events} batchTxnMap={batchTxnMap}
+              addEntriesBatch={addEntriesBatch}
+            />
+          )}
+          {!loading && page === "sewaimport" && (
+            <SewaImport
+              items={items}
+              events={events}
+              addEntriesBatch={addEntriesBatch}
+            />
           )}
           {!loading && page === "batches" && (
             <BatchManager items={items} batches={batches} ledger={ledger} batchTxnMap={batchTxnMap}

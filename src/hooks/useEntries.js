@@ -1,4 +1,4 @@
-import { addEntry as addEntryFn, updateEntry as updateEntryFn, deleteEntry as deleteEntryFn } from "../firebase/entries";
+import { addEntry as addEntryFn, addEntriesBatch as addEntriesBatchFn, updateEntry as updateEntryFn, deleteEntry as deleteEntryFn } from "../firebase/entries";
 
 /**
  * Entries are pure transaction logs now — no batch mutation happens here.
@@ -11,6 +11,10 @@ export function useEntries() {
     await addEntryFn(data);
   };
 
+  const addEntriesBatch = async (entries) => {
+    await addEntriesBatchFn(entries);
+  };
+
   const updateEntry = async (id, data) => {
     await updateEntryFn(id, data);
   };
@@ -19,5 +23,5 @@ export function useEntries() {
     await deleteEntryFn(id);
   };
 
-  return { addEntry, updateEntry, deleteEntry };
+  return { addEntry, addEntriesBatch, updateEntry, deleteEntry };
 }

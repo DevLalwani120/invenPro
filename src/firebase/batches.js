@@ -5,16 +5,12 @@ import {
 import { db } from "./config";
 
 const COL    = "batches";
-const toTS   = (s) => Timestamp.fromDate(new Date(s));
+const toTS   = (s) => {
+  if (!s) return null;
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : Timestamp.fromDate(d);
+};
 const mapDoc = (d) => ({ id: d.id, ...d.data(), expiryDate: d.data().expiryDate?.toDate?.() ?? null });
-
-/**
- * IMPORTANT: `quantity` here represents the OPENING QTY only —
- * the amount originally entered when the batch was created.
- * It is NEVER modified by Entry Sheet transactions.
- * Current/closing stock is always calculated live from entries
- * (see firebase/stock.js -> computeClosingQty).
- */
 
 export const addBatch = (data) =>
   addDoc(collection(db, COL), {
